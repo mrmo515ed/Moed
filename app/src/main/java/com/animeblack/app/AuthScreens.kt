@@ -890,7 +890,12 @@ private fun fieldColors() = OutlinedTextFieldDefaults.colors(
 )
 
 @Composable
-private fun PrimaryButton(label: String, busy: Boolean, onClick: () -> Unit, enabled: Boolean = true) {
+private fun PrimaryButton(label: String, busy: Boolean, onClick: () -> Unit) {
+    PrimaryButton(label, busy, enabled = true, onClick = onClick)
+}
+
+@Composable
+private fun PrimaryButton(label: String, busy: Boolean, enabled: Boolean, onClick: () -> Unit) {
     Button(
         onClick = onClick,
         enabled = !busy && enabled,
