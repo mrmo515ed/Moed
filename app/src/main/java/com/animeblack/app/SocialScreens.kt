@@ -36,6 +36,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
@@ -397,9 +398,11 @@ fun AnimeBlackSocialApp(
                         onRefresh = { refresh++ }
                     )
                     SocialPage.COMMUNITY -> CommunityPage(
-                        communities, user.id, communityFilter, communityQuery, loading, pageBusy,
+                        communities, user, communityFilter, communityQuery, loading, pageBusy,
                         onQuery = { communityQuery = it }, onFilter = { communityFilter = it },
                         onCreate = { page = SocialPage.COMMUNITY_CREATE },
+                        onProfile = { page = SocialPage.MORE },
+                        onNotifications = { page = SocialPage.NOTIFICATIONS },
                         onOpen = { selectedCommunityId = it.id; page = SocialPage.COMMUNITY_DETAIL },
                         onJoin = { cm -> runAction({ repository.joinCommunity(user.id, cm.id, cm.isJoined) }) },
                         onRefresh = { refresh++ }
@@ -1082,41 +1085,194 @@ private fun ActionCount(icon: ImageVector, label: String, tint: Color, enabled: 
 
 @Composable
 private fun CommunityPage(
-    communities: List<CommunityItem>, userId: String, filter: String, query: String, loading: Boolean, busy: Boolean,
+    communities: List<CommunityItem>, user: AuthUser, filter: String, query: String, loading: Boolean, busy: Boolean,
     onQuery: (String) -> Unit, onFilter: (String) -> Unit, onCreate: () -> Unit,
+    onProfile: () -> Unit, onNotifications: () -> Unit,
     onOpen: (CommunityItem) -> Unit, onJoin: (CommunityItem) -> Unit, onRefresh: () -> Unit
 ) {
-    Column(Modifier.fillMaxSize()) {
-        PageTopBar("المجتمعات", null, Icons.Outlined.Refresh, onRefresh) {
-            FilledIconButton(onClick = onCreate, colors = IconButtonDefaults.filledIconButtonColors(containerColor = Neon, contentColor = Black)) { Icon(Icons.Outlined.Add, "إنشاء مجتمع") }
+    val categories = listOf(
+        "all" to "الكل", "joined" to "مجتمعاتي", "anime" to "أنمي",
+        "studio" to "استوديوهات", "manga" to "مانغا", "shonen" to "شونين", "other" to "أخرى"
+    )
+    val ranked = remember(communities) { communities.sortedByDescending { it.memberCount } }
+    val featured = remember(ranked) { ranked.take(5) }
+    var heroIndex by rememberSaveable(filter, query) { mutableIntStateOf(0) }
+    var showAllPopular by rememberSaveable { mutableStateOf(false) }
+    val hero = featured.getOrNull(heroIndex.coerceIn(0, (featured.size - 1).coerceAtLeast(0)))
+    val browsing = query.isNotBlank() || filter != "all"
+
+    Column(Modifier.fillMaxSize().background(Color(0xFF05060D))) {
+        Row(
+            Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Surface(Modifier.size(38.dp), color = Color(0xFF080911), shape = RoundedCornerShape(12.dp), border = BorderStroke(1.dp, Violet.copy(alpha = .4f))) {
+                Image(painterResource(R.drawable.anime_black_launcher_foreground), "Anime Black", Modifier.padding(4.dp))
+            }
+            Column(Modifier.weight(1f)) {
+                Text("ANIME BLACK", color = White, fontSize = 12.sp, fontWeight = FontWeight.Black, letterSpacing = 1.2.sp)
+                Text("مجتمع الأنمي بلا حدود", color = Tertiary, fontSize = 8.sp)
+            }
+            IconButton(onClick = onNotifications) { Icon(Icons.Outlined.NotificationsNone, "الإشعارات", tint = Secondary) }
+            IconButton(onClick = onCreate) { Icon(Icons.Outlined.AddCircleOutline, "إنشاء مجتمع", tint = Color(0xFF9E65FF)) }
+            IconButton(onClick = onRefresh, enabled = !loading) { Icon(Icons.Outlined.Refresh, "تحديث", tint = Secondary) }
+            IconButton(onClick = onProfile) { Avatar(user.avatarUrl, user.displayName.ifBlank { user.username }, Modifier.size(31.dp)) }
         }
-        OutlinedSearch(query, onQuery, "ابحث عن مجتمع أو موضوع", Modifier.padding(horizontal = 16.dp, vertical = 7.dp))
-        LazyRow(Modifier.padding(horizontal = 14.dp), horizontalArrangement = Arrangement.spacedBy(7.dp)) {
-            items(listOf("all" to "الكل", "joined" to "مجتمعاتي", "anime" to "أنمي", "studio" to "استوديوهات", "manga" to "مانجا", "shonen" to "شونين", "other" to "أخرى")) { (key, title) ->
-                FilterChip(selected = filter == key, onClick = { onFilter(key) }, label = { Text(title) }, colors = chipColors())
+        OutlinedSearch(query, onQuery, "ابحث في المجتمعات والاهتمامات...", Modifier.padding(horizontal = 16.dp, vertical = 3.dp))
+        LazyRow(Modifier.padding(start = 14.dp, end = 14.dp, bottom = 3.dp), horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+            items(categories) { (key, title) ->
+                FilterChip(
+                    selected = filter == key,
+                    onClick = { onFilter(key) },
+                    label = { Text(title, fontSize = 9.sp) },
+                    leadingIcon = if (filter == key) ({ Icon(Icons.Outlined.GridView, null, modifier = Modifier.size(14.dp)) }) else null,
+                    colors = FilterChipDefaults.filterChipColors(
+                        selectedContainerColor = Color(0xFF6A35EA), selectedLabelColor = White,
+                        containerColor = Color(0xFF10121F), labelColor = Secondary
+                    ),
+                    border = FilterChipDefaults.filterChipBorder(
+                        enabled = true, selected = filter == key,
+                        borderColor = Color(0xFF25283A), selectedBorderColor = Color(0xFF9257FF)
+                    )
+                )
             }
         }
-        if (loading && communities.isEmpty()) LoadingPanel("جارٍ تحميل المجتمعات")
-        if (!loading && communities.isEmpty()) EmptyState("لا توجد نتائج", "جرّب تغيير البحث أو أنشئ مجتمعًا جديدًا.", Icons.Outlined.Groups, onCreate, "إنشاء مجتمع")
-        LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(15.dp), verticalArrangement = Arrangement.spacedBy(11.dp)) {
-            items(communities, key = { it.id }) { cm ->
-                Surface(color = Card, shape = RoundedCornerShape(18.dp), border = BorderStroke(1.dp, Color(0x2236475B)), modifier = Modifier.fillMaxWidth().clickable { onOpen(cm) }) {
-                    Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Surface(Modifier.size(49.dp), color = Violet.copy(alpha = .18f), shape = RoundedCornerShape(14.dp)) { Box(contentAlignment = Alignment.Center) { Icon(Icons.Outlined.Groups, null, tint = Neon) } }
-                            Column(Modifier.weight(1f).padding(horizontal = 10.dp)) {
-                                Text(cm.name, color = White, fontSize = 14.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                                Text("${cm.memberCount} عضو · ${categoryLabel(cm.category)}", color = Secondary, fontSize = 10.sp)
-                            }
-                            Button(onClick = { onJoin(cm) }, enabled = !busy, colors = ButtonDefaults.buttonColors(containerColor = if (cm.isJoined) Raised else Neon, contentColor = if (cm.isJoined) White else Black), shape = RoundedCornerShape(12.dp), contentPadding = PaddingValues(horizontal = 13.dp, vertical = 6.dp)) {
-                                Text(if (cm.isJoined) "عضو" else "انضمام", fontSize = 10.sp)
-                            }
-                        }
-                        Text(cm.description.ifBlank { "مجتمع لمشاركة الآراء والنقاشات حول ${cm.name}." }, color = Secondary, fontSize = 11.sp, lineHeight = 18.sp, maxLines = 3, overflow = TextOverflow.Ellipsis)
-                        Text("فتح المجتمع", color = Neon, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+        LazyColumn(
+            Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(bottom = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            if (loading && communities.isEmpty()) item { LoadingPanel("جارٍ تحميل المجتمعات") }
+            if (!loading && communities.isEmpty()) item {
+                EmptyState("لا توجد نتائج", "لا توجد مجتمعات مطابقة في قاعدة البيانات. جرّب فلترًا آخر أو أنشئ مجتمعًا.", Icons.Outlined.Groups, onCreate, "إنشاء مجتمع")
+            }
+            if (!browsing && hero != null) item {
+                CommunityHeroCard(hero, featured.size, heroIndex, onPage = { heroIndex = it }, onOpen = { onOpen(hero) })
+            }
+            if (!browsing && ranked.isNotEmpty()) item {
+                CommunitySectionTitle(
+                    "أهم المجتمعات", Icons.Outlined.EmojiEvents,
+                    if (ranked.size > 4) if (showAllPopular) "عرض أقل" else "عرض الكل" else "",
+                    onClick = { showAllPopular = !showAllPopular }
+                )
+            }
+            if (!browsing && ranked.isNotEmpty()) item {
+                LazyRow(contentPadding = PaddingValues(horizontal = 15.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    items(ranked.take(if (showAllPopular) 8 else 4), key = { "featured-${it.id}" }) { cm ->
+                        CommunityPosterCard(cm, onOpen = { onOpen(cm) })
                     }
                 }
             }
+            if (ranked.isNotEmpty()) item {
+                CommunitySectionTitle(
+                    if (filter == "joined") "مجتمعاتي" else if (query.isNotBlank()) "نتائج البحث" else "المجتمعات النشطة",
+                    Icons.Outlined.Whatshot, if (browsing) "الكل" else "",
+                    onClick = { onFilter("all"); onQuery("") }
+                )
+            }
+            items(ranked, key = { it.id }) { cm ->
+                CommunityListCard(cm, busy, onOpen = { onOpen(cm) }, onJoin = { onJoin(cm) })
+            }
+        }
+    }
+}
+
+@Composable
+private fun CommunityHeroCard(
+    community: CommunityItem, pageCount: Int, page: Int, onPage: (Int) -> Unit, onOpen: () -> Unit
+) {
+    Box(Modifier.fillMaxWidth().padding(horizontal = 15.dp).height(178.dp).clip(RoundedCornerShape(20.dp))) {
+        if (!community.coverUrl.isNullOrBlank()) {
+            AsyncImage(community.coverUrl, "غلاف ${community.name}", Modifier.fillMaxSize(), contentScale = androidx.compose.ui.layout.ContentScale.Crop)
+        } else Box(Modifier.fillMaxSize().background(Brush.linearGradient(listOf(Color(0xFF311264), Color(0xFF10182B), Color(0xFF080A13)))))
+        Box(Modifier.fillMaxSize().background(Brush.horizontalGradient(listOf(Color(0xF8070810), Color(0xB4080A16), Color(0x16080A16)))))
+        Column(Modifier.align(Alignment.CenterStart).fillMaxWidth(.77f).padding(start = 17.dp, end = 8.dp, top = 10.dp, bottom = 10.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
+            Text("مجتمع الأنمي بلا حدود", color = White, fontSize = 16.sp, fontWeight = FontWeight.Black)
+            Text(community.name, color = Color(0xFFD5B9FF), fontSize = 12.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(community.description.ifBlank { "اكتشف نقاشات الأعضاء وانضم إلى مجتمع ${community.name}." }, color = Color(0xFFD2D3DF), fontSize = 9.sp, lineHeight = 14.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+                Button(onClick = onOpen, contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp), shape = RoundedCornerShape(11.dp), colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF743BEE), contentColor = White)) {
+                    Text("اكتشف الآن", fontSize = 9.sp); Spacer(Modifier.width(4.dp)); Icon(Icons.Outlined.ArrowForward, null, modifier = Modifier.size(13.dp))
+                }
+                Text("${community.memberCount} عضو", color = Secondary, fontSize = 8.sp)
+            }
+        }
+        if (pageCount > 1) Row(Modifier.align(Alignment.BottomEnd).padding(12.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+            (0 until pageCount).forEach { index ->
+                Surface(Modifier.size(width = if (index == page) 15.dp else 5.dp, height = 5.dp).clip(CircleShape).clickable { onPage(index) }, color = if (index == page) Color(0xFFB47BFF) else White.copy(alpha = .45f), shape = CircleShape) {}
+            }
+        }
+    }
+}
+
+@Composable
+private fun CommunitySectionTitle(title: String, icon: ImageVector, action: String, onClick: () -> Unit) {
+    Row(Modifier.fillMaxWidth().padding(horizontal = 17.dp, vertical = 2.dp), verticalAlignment = Alignment.CenterVertically) {
+        Icon(icon, null, tint = Color(0xFF9E62FF), modifier = Modifier.size(17.dp))
+        Text(title, color = White, fontSize = 12.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f).padding(start = 7.dp))
+        if (action.isNotBlank()) TextButton(onClick = onClick, contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp)) {
+            Text(action, color = Color(0xFFB67CFF), fontSize = 9.sp)
+            Icon(Icons.Outlined.ArrowBack, null, tint = Color(0xFFB67CFF), modifier = Modifier.size(13.dp))
+        }
+    }
+}
+
+@Composable
+private fun CommunityPosterCard(community: CommunityItem, onOpen: () -> Unit) {
+    Surface(
+        Modifier.width(145.dp).height(184.dp).clickable(onClick = onOpen),
+        color = Color(0xFF0F1220), shape = RoundedCornerShape(17.dp),
+        border = BorderStroke(1.dp, Color(0xFF29253F))
+    ) {
+        Box {
+            if (!community.coverUrl.isNullOrBlank()) AsyncImage(community.coverUrl, "${community.name} community", Modifier.fillMaxSize(), contentScale = androidx.compose.ui.layout.ContentScale.Crop)
+            else Box(Modifier.fillMaxSize().background(Brush.linearGradient(listOf(Violet.copy(alpha = .55f), Color(0xFF101423)))))
+            Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color.Transparent, Color(0xEE05060C)))))
+            Surface(Modifier.align(Alignment.TopEnd).padding(8.dp).size(23.dp), color = Color(0xD8090A12), shape = CircleShape, border = BorderStroke(.5.dp, Gold.copy(alpha = .6f))) {
+                Box(contentAlignment = Alignment.Center) { Icon(Icons.Outlined.EmojiEvents, null, tint = Gold, modifier = Modifier.size(14.dp)) }
+            }
+            Column(Modifier.align(Alignment.BottomStart).fillMaxWidth().padding(10.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                Text(community.name, color = White, fontSize = 10.sp, fontWeight = FontWeight.Bold, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Outlined.Groups, null, tint = Color(0xFFD3C3FF), modifier = Modifier.size(12.dp))
+                    Text(" ${community.memberCount}", color = Secondary, fontSize = 8.sp)
+                }
+                Text(categoryLabel(community.category), color = Color(0xFFC9B4FF), fontSize = 8.sp, maxLines = 1)
+            }
+        }
+    }
+}
+
+@Composable
+private fun CommunityListCard(community: CommunityItem, busy: Boolean, onOpen: () -> Unit, onJoin: () -> Unit) {
+    Surface(
+        Modifier.fillMaxWidth().padding(horizontal = 14.dp).clickable(onClick = onOpen),
+        color = Color(0xFF0B0E19), shape = RoundedCornerShape(17.dp),
+        border = BorderStroke(1.dp, Color(0xFF1D2234))
+    ) {
+        Row(Modifier.padding(10.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(9.dp)) {
+            Surface(Modifier.size(58.dp), color = Color(0xFF181129), shape = CircleShape, border = BorderStroke(1.dp, Violet.copy(alpha = .4f))) {
+                if (!community.coverUrl.isNullOrBlank()) AsyncImage(community.coverUrl, community.name, Modifier.clip(CircleShape), contentScale = androidx.compose.ui.layout.ContentScale.Crop)
+                else Box(contentAlignment = Alignment.Center) { Icon(Icons.Outlined.Groups, null, tint = Color(0xFFB87CFF), modifier = Modifier.size(25.dp)) }
+            }
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(community.name, color = White, fontSize = 10.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(community.description.ifBlank { "نقاشات ومجتمع ${community.name}" }, color = Secondary, fontSize = 8.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Surface(color = Color(0xFF17182A), shape = RoundedCornerShape(8.dp)) {
+                    Text(categoryLabel(community.category), color = Color(0xFFC2A5FF), fontSize = 7.sp, modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp))
+                }
+            }
+            Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Icon(Icons.Outlined.Groups, null, tint = Color(0xFFD3C3FF), modifier = Modifier.size(12.dp))
+                    Text("${community.memberCount} عضو", color = Secondary, fontSize = 8.sp)
+                }
+                Button(onClick = onJoin, enabled = !busy, contentPadding = PaddingValues(horizontal = 13.dp, vertical = 4.dp), shape = RoundedCornerShape(10.dp), colors = ButtonDefaults.buttonColors(containerColor = if (community.isJoined) Color(0xFF12372F) else Color(0xFF6533DF), contentColor = if (community.isJoined) Good else White)) {
+                    Text(if (community.isJoined) "منضم" else "انضم", fontSize = 8.sp)
+                }
+            }
+            Icon(Icons.Outlined.ChevronLeft, null, tint = Tertiary, modifier = Modifier.size(16.dp))
         }
     }
 }
@@ -1128,26 +1284,72 @@ private fun CommunityDetailPage(
     onPostComments: (SocialPost) -> Unit, onPostLike: (SocialPost) -> Unit, onPostSave: (SocialPost) -> Unit,
     onShare: (SocialPost) -> Unit, onMore: (SocialPost) -> Unit, onVote: (SocialPost, String) -> Unit
 ) {
-    Column(Modifier.fillMaxSize()) {
-        PageTopBar(community?.name ?: "المجتمع", onBack, null, null) {
-            if (community != null) Button(onClick = { onJoin(community) }, enabled = !busy, shape = RoundedCornerShape(12.dp), colors = ButtonDefaults.buttonColors(containerColor = if (community.isJoined) Raised else Neon, contentColor = if (community.isJoined) White else Black)) {
-                Text(if (community.isJoined) "عضو" else "انضمام", fontSize = 11.sp)
-            }
-        }
-        community?.let { cm ->
-            Column(Modifier.padding(horizontal = 16.dp, vertical = 7.dp)) {
-                Text("${cm.memberCount} عضو · ${categoryLabel(cm.category)}", color = Neon, fontSize = 11.sp)
-                Text(cm.description.ifBlank { "مساحة لمجتمع ${cm.name}." }, color = Secondary, fontSize = 12.sp, lineHeight = 19.sp, modifier = Modifier.padding(top = 5.dp))
-                Spacer(Modifier.height(10.dp))
-                Button(onClick = onCreatePost, enabled = cm.isJoined, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp), colors = ButtonDefaults.buttonColors(containerColor = Neon, contentColor = Black)) {
-                    Icon(Icons.Outlined.Edit, null, modifier = Modifier.size(17.dp)); Spacer(Modifier.width(7.dp)); Text(if (cm.isJoined) "اكتب للمجتمع" else "انضم للنشر")
+    Column(Modifier.fillMaxSize().background(Color(0xFF05060D))) {
+        PageTopBar(community?.name ?: "المجتمع", onBack, null, null)
+        if (community == null) {
+            if (loading) LoadingPanel("جارٍ تحميل المجتمع")
+            else EmptyInline("هذا المجتمع غير متاح أو لم يعد موجودًا.", Icons.Outlined.Groups)
+        } else {
+            LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                item {
+                    Box(Modifier.fillMaxWidth().height(205.dp)) {
+                        if (!community.coverUrl.isNullOrBlank()) AsyncImage(community.coverUrl, "غلاف ${community.name}", Modifier.fillMaxSize(), contentScale = androidx.compose.ui.layout.ContentScale.Crop)
+                        else Box(Modifier.fillMaxSize().background(Brush.linearGradient(listOf(Color(0xFF391376), Color(0xFF12182A), Color(0xFF070911)))))
+                        Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color(0x16000000), Color(0xCC05060D)))))
+                        Row(Modifier.align(Alignment.BottomStart).fillMaxWidth().padding(horizontal = 16.dp, vertical = 13.dp), verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(11.dp)) {
+                            Surface(Modifier.size(66.dp), color = Color(0xFF17132B), shape = CircleShape, border = BorderStroke(2.dp, Violet)) {
+                                if (!community.coverUrl.isNullOrBlank()) AsyncImage(community.coverUrl, community.name, Modifier.clip(CircleShape), contentScale = androidx.compose.ui.layout.ContentScale.Crop)
+                                else Box(contentAlignment = Alignment.Center) { Icon(Icons.Outlined.Groups, null, tint = Color(0xFFC395FF), modifier = Modifier.size(30.dp)) }
+                            }
+                            Column(Modifier.weight(1f).padding(bottom = 3.dp)) {
+                                Text(community.name, color = White, fontSize = 17.sp, fontWeight = FontWeight.Black, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                                Text("${community.memberCount} عضو · ${categoryLabel(community.category)}", color = Color(0xFFD1B9FF), fontSize = 9.sp)
+                            }
+                        }
+                    }
+                }
+                item {
+                    Column(Modifier.padding(horizontal = 15.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
+                        Text(community.description.ifBlank { "مساحة لأعضاء ${community.name} للتواصل ومشاركة النقاشات." }, color = Secondary, fontSize = 11.sp, lineHeight = 17.sp)
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+                            CommunityDetailStat("${community.memberCount}", "عضو", Icons.Outlined.Groups, Modifier.weight(1f))
+                            CommunityDetailStat(categoryLabel(community.category), "التصنيف", Icons.Outlined.Category, Modifier.weight(1f))
+                        }
+                        Button(
+                            onClick = { onJoin(community) }, enabled = !busy, modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(13.dp), colors = ButtonDefaults.buttonColors(containerColor = if (community.isJoined) Color(0xFF202438) else Color(0xFF7138E9), contentColor = White)
+                        ) {
+                            Icon(if (community.isJoined) Icons.Outlined.CheckCircle else Icons.Outlined.Groups, null, modifier = Modifier.size(17.dp))
+                            Spacer(Modifier.width(7.dp)); Text(if (community.isJoined) "أنت عضو في المجتمع" else "الانضمام إلى المجتمع", fontSize = 10.sp)
+                        }
+                        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                            Text("المنشورات", color = White, fontSize = 13.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+                            Text("${posts.size} معروض", color = Tertiary, fontSize = 8.sp)
+                        }
+                        OutlinedButton(onClick = onCreatePost, enabled = community.isJoined && !busy, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp), colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFFBE96FF))) {
+                            Icon(Icons.Outlined.Edit, null, modifier = Modifier.size(15.dp)); Spacer(Modifier.width(6.dp)); Text(if (community.isJoined) "اكتب منشورًا للمجتمع" else "انضم أولًا للمشاركة", fontSize = 9.sp)
+                        }
+                    }
+                }
+                if (loading && posts.isEmpty()) item { LoadingPanel("جارٍ تحميل نقاشات المجتمع") }
+                else if (!loading && posts.isEmpty()) item { EmptyInline("لا توجد منشورات في هذا المجتمع بعد. يمكنك بدء أول نقاش بعد الانضمام.", Icons.Outlined.Forum) }
+                items(posts, key = { it.id }) { post ->
+                    PostCard(post, userId, hideSpoilers, busy, onPostLike, onPostComments, onPostSave, onShare, onMore, onVote) { }
                 }
             }
         }
-        LazyColumn(Modifier.weight(1f), contentPadding = PaddingValues(14.dp), verticalArrangement = Arrangement.spacedBy(11.dp)) {
-            if (loading && posts.isEmpty()) item { LoadingPanel("جارٍ تحميل النقاشات") }
-            if (!loading && posts.isEmpty()) item { EmptyInline("لا توجد منشورات هنا بعد. ابدأ أول نقاش عند الانضمام.", Icons.Outlined.Forum) }
-            items(posts, key = { it.id }) { post -> PostCard(post, userId, hideSpoilers, busy, onPostLike, onPostComments, onPostSave, onShare, onMore, onVote) { } }
+    }
+}
+
+@Composable
+private fun CommunityDetailStat(value: String, label: String, icon: ImageVector, modifier: Modifier = Modifier) {
+    Surface(modifier, color = Color(0xFF0D101B), shape = RoundedCornerShape(12.dp), border = BorderStroke(1.dp, Color(0xFF202436))) {
+        Row(Modifier.padding(horizontal = 9.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            Icon(icon, null, tint = Color(0xFFAE7CFF), modifier = Modifier.size(14.dp))
+            Column {
+                Text(value, color = White, fontSize = 9.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+                Text(label, color = Tertiary, fontSize = 7.sp)
+            }
         }
     }
 }
