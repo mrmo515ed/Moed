@@ -46,6 +46,8 @@ import androidx.media3.common.MediaItem
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.PlayerView
 import coil.compose.AsyncImage
+import java.text.SimpleDateFormat
+import java.util.Locale
 import com.animeblack.app.auth.AchievementItem
 import com.animeblack.app.auth.AdminMetrics
 import com.animeblack.app.auth.AdminReport
@@ -55,10 +57,13 @@ import com.animeblack.app.auth.AuthUser
 import com.animeblack.app.auth.ChatMessage
 import com.animeblack.app.auth.ChatSummary
 import com.animeblack.app.auth.CatalogEntry
+import com.animeblack.app.auth.CharacterItem
+import com.animeblack.app.auth.EpisodeScheduleEntry
 import com.animeblack.app.auth.CommunityItem
 import com.animeblack.app.auth.MangaTrackerEntry
 import com.animeblack.app.auth.MangaWatchEntry
 import com.animeblack.app.auth.FrameItem
+import com.animeblack.app.auth.QuoteEntry
 import com.animeblack.app.auth.ReelItem
 import com.animeblack.app.auth.SocialComment
 import com.animeblack.app.auth.SocialPost
@@ -91,7 +96,7 @@ private enum class SocialPage {
     HOME, COMMUNITY, CHAT, REELS, MORE, CREATE_POST, SEARCH, NOTIFICATIONS,
     COMMUNITY_CREATE, COMMUNITY_DETAIL, CHAT_NEW, CHAT_ROOM, POST_COMMENTS,
     REEL_COMMENTS, REEL_CREATE, STORE, WATCHLIST, ACHIEVEMENTS, PRIVACY,
-    STORY_VIEWER, PUBLIC_PROFILE, CATALOG, CATALOG_DETAIL, MANGA_WATCHLIST, ADMIN
+    STORY_VIEWER, PUBLIC_PROFILE, CATALOG, CATALOG_DETAIL, MANGA_WATCHLIST, ADMIN, CHARACTERS, CHARACTER_DETAIL, SCHEDULE, QUOTES
 }
 
 @Composable
@@ -116,11 +121,20 @@ fun AnimeBlackSocialApp(
     var catalogSearch by rememberSaveable { mutableStateOf("") }
     var selectedCatalogId by rememberSaveable { mutableStateOf<String?>(null) }
     var catalogReturnPage by rememberSaveable { mutableStateOf(SocialPage.CATALOG) }
+    var characterSearch by rememberSaveable { mutableStateOf("") }
+    var characters by remember { mutableStateOf<List<CharacterItem>>(emptyList()) }
+    var selectedCharacter by remember { mutableStateOf<CharacterItem?>(null) }
+    var selectedCharacterId by rememberSaveable { mutableStateOf<String?>(null) }
+    var characterWorks by remember { mutableStateOf<List<CatalogEntry>>(emptyList()) }
+    var favoriteCharacterIds by remember { mutableStateOf<Set<String>>(emptySet()) }
+    var onlyFavoriteCharacters by rememberSaveable { mutableStateOf(false) }
     var catalogItems by remember { mutableStateOf<List<CatalogEntry>>(emptyList()) }
     var catalogDetail by remember { mutableStateOf<CatalogEntry?>(null) }
     var favoriteAnimeIds by remember { mutableStateOf<Set<String>>(emptySet()) }
     var mangaTracker by remember { mutableStateOf<MangaTrackerEntry?>(null) }
     var mangaWatchlist by remember { mutableStateOf<List<MangaWatchEntry>>(emptyList()) }
+    var episodeSchedule by remember { mutableStateOf<List<EpisodeScheduleEntry>>(emptyList()) }
+    var quotes by remember { mutableStateOf<List<QuoteEntry>>(emptyList()) }
     var adminRole by remember { mutableStateOf("member") }
     var adminMetrics by remember { mutableStateOf<AdminMetrics?>(null) }
     var adminReports by remember { mutableStateOf<List<AdminReport>>(emptyList()) }
@@ -195,17 +209,19 @@ fun AnimeBlackSocialApp(
     fun navigateBack() {
         page = when (page) {
             SocialPage.CATALOG_DETAIL -> catalogReturnPage
+            SocialPage.CHARACTER_DETAIL -> SocialPage.CHARACTERS
             else -> homePageForTab(tab)
         }
     }
     BackHandler(enabled = page != homePageForTab(tab)) { navigateBack() }
 
-    LaunchedEffect(page, tab, feedFilter, communityFilter, communityQuery, searchQuery, newChatQuery, watchSearch, catalogSearch, catalogKind, selectedCatalogId, selectedCommunityId, selectedChatId, adminPendingOnly, refresh) {
+    LaunchedEffect(page, tab, feedFilter, communityFilter, communityQuery, searchQuery, newChatQuery, watchSearch, catalogSearch, catalogKind, selectedCatalogId, characterSearch, selectedCharacterId, selectedCommunityId, selectedChatId, adminPendingOnly, refresh) {
         if ((page == SocialPage.SEARCH && searchQuery.isNotBlank()) ||
             (page == SocialPage.CHAT_NEW && newChatQuery.isNotBlank()) ||
             (page == SocialPage.COMMUNITY && communityQuery.isNotBlank()) ||
             (page == SocialPage.WATCHLIST && watchSearch.isNotBlank()) ||
-            (page == SocialPage.CATALOG && catalogSearch.isNotBlank())) delay(350)
+            (page == SocialPage.CATALOG && catalogSearch.isNotBlank()) ||
+            (page == SocialPage.CHARACTERS && characterSearch.isNotBlank())) delay(350)
         loading = true
         notice = null
         try {
@@ -251,6 +267,19 @@ fun AnimeBlackSocialApp(
                 }
                 SocialPage.CATALOG -> catalogItems = repository.loadCatalog(catalogKind, catalogSearch)
                 SocialPage.MANGA_WATCHLIST -> mangaWatchlist = repository.loadMangaWatchlist(user.id)
+                SocialPage.SCHEDULE -> episodeSchedule = repository.loadEpisodeSchedule()
+                SocialPage.QUOTES -> quotes = repository.loadApprovedQuotes(user.id)
+                SocialPage.CHARACTERS -> {
+                    characters = repository.loadCharacters(characterSearch)
+                    favoriteCharacterIds = repository.loadFavoriteCharacterIds(user.id)
+                }
+                SocialPage.CHARACTER_DETAIL -> {
+                    selectedCharacterId?.let { id ->
+                        selectedCharacter = repository.loadCharacterDetail(id)
+                        characterWorks = repository.loadCharacterWorks(id)
+                        favoriteCharacterIds = repository.loadFavoriteCharacterIds(user.id)
+                    }
+                }
                 SocialPage.ADMIN -> {
                     if (adminRole in setOf("admin", "moderator")) {
                         adminMetrics = repository.loadAdminMetrics()
@@ -386,6 +415,9 @@ fun AnimeBlackSocialApp(
                         onEditProfile = onEditProfile,
                         onStore = { page = SocialPage.STORE },
                         onCatalog = { catalogKind = "anime"; catalogSearch = ""; page = SocialPage.CATALOG },
+                        onCharacters = { characterSearch = ""; onlyFavoriteCharacters = false; page = SocialPage.CHARACTERS },
+                        onSchedule = { page = SocialPage.SCHEDULE },
+                        onQuotes = { page = SocialPage.QUOTES },
                         onMangaList = { page = SocialPage.MANGA_WATCHLIST },
                         isAdmin = adminRole in setOf("admin", "moderator"),
                         onAdmin = { adminPendingOnly = true; page = SocialPage.ADMIN },
@@ -467,6 +499,18 @@ fun AnimeBlackSocialApp(
                         onProgress = { entry, delta -> runAction({ repository.saveTrackerEntry(user.id, entry.anime.id, entry.status, (entry.progress + delta).coerceAtLeast(0), entry.score) }) },
                         onDelete = { entry -> runAction({ repository.deleteTrackerEntry(user.id, entry.anime.id) }) }
                     )
+                    SocialPage.SCHEDULE -> SchedulePage(episodeSchedule, loading, pageBusy, onBack, onRefresh = { refresh++ },
+                        onOpenAnime = { scheduled -> catalogKind = "anime"; catalogReturnPage = SocialPage.SCHEDULE; selectedCatalogId = scheduled.anime.id; catalogDetail = null; page = SocialPage.CATALOG_DETAIL })
+                    SocialPage.QUOTES -> QuotesPage(quotes, loading, pageBusy, onBack, onRefresh = { refresh++ },
+                        onLike = { quote -> runAction({ repository.toggleQuoteLike(user.id, quote.id, quote.isLiked) }) },
+                        onShare = { quote -> shareText(context, "${quote.text}\n— ${quote.characterName}${quote.sourceReference?.let { " · $it" } ?: ""}") })
+                    SocialPage.CHARACTERS -> CharacterCatalogPage(characters, characterSearch, favoriteCharacterIds, onlyFavoriteCharacters, loading, pageBusy, onBack,
+                        onSearch = { characterSearch = it }, onOnlyFavorites = { onlyFavoriteCharacters = it },
+                        onOpen = { character -> selectedCharacter = character; selectedCharacterId = character.id; page = SocialPage.CHARACTER_DETAIL },
+                        onToggleFavorite = { character -> runAction({ repository.toggleFavoriteCharacter(user.id, character.id, character.id in favoriteCharacterIds) }) })
+                    SocialPage.CHARACTER_DETAIL -> CharacterDetailPage(selectedCharacter, characterWorks, selectedCharacter?.id?.let { it in favoriteCharacterIds } == true, loading, pageBusy, onBack,
+                        onToggleFavorite = { character -> runAction({ repository.toggleFavoriteCharacter(user.id, character.id, character.id in favoriteCharacterIds) }) },
+                        onOpenWork = { work -> catalogKind = work.kind; catalogReturnPage = SocialPage.CHARACTER_DETAIL; catalogDetail = work; selectedCatalogId = work.id; mangaTracker = null; page = SocialPage.CATALOG_DETAIL })
                     SocialPage.MANGA_WATCHLIST -> MangaWatchlistPage(mangaWatchlist, loading, pageBusy, onBack,
                         onExplore = { catalogKind = "manga"; catalogSearch = ""; page = SocialPage.CATALOG },
                         onOpen = { entry -> catalogReturnPage = SocialPage.MANGA_WATCHLIST; catalogKind = "manga"; catalogDetail = entry.manga; selectedCatalogId = entry.manga.id; mangaTracker = MangaTrackerEntry(entry.manga.id, entry.status, entry.progressChapters, entry.progressVolumes, entry.score); page = SocialPage.CATALOG_DETAIL },
@@ -1163,7 +1207,7 @@ private fun ReelsPage(
 @Composable
 private fun MorePage(
     user: AuthUser, stats: UserStats?, busy: Boolean, onEditProfile: () -> Unit, onStore: () -> Unit,
-    onWatchlist: () -> Unit, onCatalog: () -> Unit, onMangaList: () -> Unit, isAdmin: Boolean, onAdmin: () -> Unit, onAchievements: () -> Unit, onTheme: () -> Unit, pureBlack: Boolean,
+    onWatchlist: () -> Unit, onCatalog: () -> Unit, onCharacters: () -> Unit, onSchedule: () -> Unit, onQuotes: () -> Unit, onMangaList: () -> Unit, isAdmin: Boolean, onAdmin: () -> Unit, onAchievements: () -> Unit, onTheme: () -> Unit, pureBlack: Boolean,
     onPrivacy: () -> Unit, onSignOut: () -> Unit
 ) {
     LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -1193,6 +1237,9 @@ private fun MorePage(
         item { ActionSetting(Icons.Outlined.LibraryBooks, "قائمة متابعة الأنمي", "حالة المشاهدة والتقدم المسجل", onWatchlist) }
         item { ActionSetting(Icons.Outlined.LibraryBooks, "قائمة المانغا", "حالة القراءة والفصول التي سجلتها", onMangaList) }
         item { ActionSetting(Icons.Outlined.LibraryBooks, "كتالوج الأنمي والمانغا", "استكشف العناوين المسجلة في قاعدة البيانات", onCatalog) }
+        item { ActionSetting(Icons.Outlined.Person, "الشخصيات", "استكشف الشخصيات وأضف مفضلاتك", onCharacters) }
+        item { ActionSetting(Icons.Outlined.CalendarMonth, "جدول الحلقات", "المواعيد القادمة من قاعدة بيانات الجدول", onSchedule) }
+        item { ActionSetting(Icons.Outlined.FormatQuote, "اقتباسات الشخصيات", "اقتباسات منشورة ومعتمدة من الكتالوج", onQuotes) }
         item { ActionSetting(Icons.Outlined.EmojiEvents, "الإنجازات", "إنجازاتك وتقدمك في المجتمع", onAchievements) }
         if (isAdmin) item { ActionSetting(Icons.Outlined.Settings, "لوحة الإدارة", "مراجعة البلاغات وإحصاءات المنصة", onAdmin) }
         item { ActionSetting(Icons.Outlined.Settings, "الخصوصية والتفضيلات", "الحرق، تشغيل المقاطع، والمظهر", onPrivacy) }
@@ -1206,6 +1253,163 @@ private fun MorePage(
             }
         }
         item { OutlinedButton(onClick = onSignOut, enabled = !busy, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp), colors = ButtonDefaults.outlinedButtonColors(contentColor = Danger)) { Icon(Icons.Outlined.Logout, null); Spacer(Modifier.width(7.dp)); Text("تسجيل الخروج") } }
+    }
+}
+
+@Composable
+private fun QuotesPage(
+    quotes: List<QuoteEntry>, loading: Boolean, busy: Boolean, onBack: () -> Unit, onRefresh: () -> Unit,
+    onLike: (QuoteEntry) -> Unit, onShare: (QuoteEntry) -> Unit
+) {
+    Column(Modifier.fillMaxSize()) {
+        PageTopBar("اقتباسات الشخصيات", onBack, Icons.Outlined.Refresh, onRefresh)
+        if (loading && quotes.isEmpty()) LoadingPanel("جارٍ تحميل الاقتباسات المعتمدة")
+        if (!loading && quotes.isEmpty()) EmptyInline("لا توجد اقتباسات معتمدة لعرضها حاليًا.", Icons.Outlined.FormatQuote)
+        else LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            items(quotes, key = { it.id }) { quote ->
+                Surface(Modifier.fillMaxWidth(), color = Panel.copy(alpha = .86f), shape = RoundedCornerShape(19.dp), border = BorderStroke(1.dp, Violet.copy(alpha = .25f))) {
+                    Column(Modifier.padding(15.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
+                        Text("“${quote.text}”", color = White, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, lineHeight = 23.sp)
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Outlined.Person, null, tint = Neon, modifier = Modifier.size(16.dp))
+                            Text(quote.characterName.ifBlank { "شخصية غير محددة" }, color = Neon, fontSize = 10.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(start = 6.dp))
+                        }
+                        quote.sourceReference?.let { Text("المصدر: $it", color = Secondary, fontSize = 9.sp) }
+                        if (quote.tags.isNotEmpty()) Text(quote.tags.joinToString(" · "), color = Tertiary, fontSize = 9.sp)
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
+                            ActionCount(if (quote.isLiked) Icons.Outlined.Favorite else Icons.Outlined.FavoriteBorder, quote.likeCount.toString(), if (quote.isLiked) Danger else Secondary, !busy) { onLike(quote) }
+                            IconAction(Icons.Outlined.Share, "مشاركة الاقتباس", { onShare(quote) }, small = true)
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun SchedulePage(
+    entries: List<EpisodeScheduleEntry>, loading: Boolean, busy: Boolean, onBack: () -> Unit, onRefresh: () -> Unit,
+    onOpenAnime: (EpisodeScheduleEntry) -> Unit
+) {
+    Column(Modifier.fillMaxSize()) {
+        PageTopBar("جدول الحلقات", onBack, Icons.Outlined.Refresh, onRefresh)
+        Text("المواعيد القادمة المسجلة في قاعدة البيانات · توقيت جهازك", color = Secondary, fontSize = 9.sp, modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp))
+        if (loading && entries.isEmpty()) LoadingPanel("جارٍ تحميل الجدول")
+        if (!loading && entries.isEmpty()) EmptyInline("لا توجد مواعيد حلقات مستقبلية مسجلة حاليًا.", Icons.Outlined.CalendarMonth)
+        else LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(14.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
+            items(entries, key = { it.id }) { scheduled ->
+                Surface(Modifier.fillMaxWidth().clickable(enabled = !busy) { onOpenAnime(scheduled) }, color = Card.copy(alpha = .9f), shape = RoundedCornerShape(16.dp), border = BorderStroke(1.dp, White.copy(alpha = .08f))) {
+                    Row(Modifier.padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                        AnimePoster(scheduled.anime, Modifier.size(width = 50.dp, height = 68.dp))
+                        Column(Modifier.weight(1f).padding(horizontal = 10.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Text(scheduled.anime.displayTitle, color = White, fontSize = 11.sp, fontWeight = FontWeight.Bold, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                            Text("الحلقة ${scheduled.episodeNumber}", color = Neon, fontSize = 9.sp)
+                            Text(scheduleDateLabel(scheduled.airAt), color = Secondary, fontSize = 9.sp)
+                        }
+                        Icon(Icons.Outlined.ChevronLeft, null, tint = Tertiary)
+                    }
+                }
+            }
+        }
+    }
+}
+
+private fun scheduleDateLabel(value: String): String {
+    val formats = listOf("yyyy-MM-dd'T'HH:mm:ss.SSSXXX", "yyyy-MM-dd'T'HH:mm:ssXXX", "yyyy-MM-dd'T'HH:mm:ss.SSSX", "yyyy-MM-dd'T'HH:mm:ssX")
+    val date = formats.firstNotNullOfOrNull { pattern -> runCatching { SimpleDateFormat(pattern, Locale.US).parse(value) }.getOrNull() }
+        ?: return value
+    return SimpleDateFormat("EEE d MMM · HH:mm", Locale("ar")).format(date)
+}
+
+@Composable
+private fun CharacterCatalogPage(
+    characters: List<CharacterItem>, query: String, favorites: Set<String>, favoritesOnly: Boolean, loading: Boolean, busy: Boolean,
+    onBack: () -> Unit, onSearch: (String) -> Unit, onOnlyFavorites: (Boolean) -> Unit, onOpen: (CharacterItem) -> Unit,
+    onToggleFavorite: (CharacterItem) -> Unit
+) {
+    Column(Modifier.fillMaxSize()) {
+        PageTopBar("الشخصيات", onBack, null, null)
+        OutlinedSearch(query, onSearch, "ابحث باسم الشخصية", Modifier.padding(horizontal = 15.dp, vertical = 7.dp))
+        Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp), horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+            FilterChip(selected = !favoritesOnly, onClick = { onOnlyFavorites(false) }, label = { Text("الكل") }, colors = chipColors())
+            FilterChip(selected = favoritesOnly, onClick = { onOnlyFavorites(true) }, label = { Text("مفضلتي") }, colors = chipColors())
+        }
+        val visibleCharacters = characters.filter { !favoritesOnly || it.id in favorites }
+        if (loading && visibleCharacters.isEmpty()) LoadingPanel("جارٍ تحميل الشخصيات")
+        if (!loading && visibleCharacters.isEmpty()) EmptyInline(if (favoritesOnly) "لم تضف شخصيات إلى المفضلة بعد." else "لا توجد شخصيات مطابقة في قاعدة البيانات حاليًا.", Icons.Outlined.Person)
+        else LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(14.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
+            items(visibleCharacters, key = { it.id }) { character ->
+                Surface(Modifier.fillMaxWidth().clickable(enabled = !busy) { onOpen(character) }, color = Card.copy(alpha = .92f), shape = RoundedCornerShape(17.dp), border = BorderStroke(1.dp, White.copy(alpha = .09f))) {
+                    Row(Modifier.padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                        CharacterPortrait(character, Modifier.size(60.dp))
+                        Column(Modifier.weight(1f).padding(horizontal = 10.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Text(character.displayName, color = White, fontSize = 12.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            if (character.nameEnglish.isNotBlank() && character.nameEnglish != character.displayName) Text(character.nameEnglish, color = Secondary, fontSize = 9.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            Text("عرض الشخصية والأعمال المرتبطة", color = Neon, fontSize = 9.sp)
+                        }
+                        IconButton(onClick = { onToggleFavorite(character) }, enabled = !busy) {
+                            Icon(if (character.id in favorites) Icons.Outlined.Favorite else Icons.Outlined.FavoriteBorder,
+                                if (character.id in favorites) "إزالة من المفضلة" else "أضف للمفضلة", tint = if (character.id in favorites) Danger else Secondary)
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun CharacterDetailPage(
+    character: CharacterItem?, works: List<CatalogEntry>, isFavorite: Boolean, loading: Boolean, busy: Boolean,
+    onBack: () -> Unit, onToggleFavorite: (CharacterItem) -> Unit, onOpenWork: (CatalogEntry) -> Unit
+) {
+    Column(Modifier.fillMaxSize()) {
+        PageTopBar(character?.displayName ?: "تفاصيل الشخصية", onBack, null, null)
+        if (loading && character == null) LoadingPanel("جارٍ تحميل التفاصيل")
+        if (character == null && !loading) EmptyInline("تعذر العثور على الشخصية.", Icons.Outlined.Info)
+        else if (character != null) LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 18.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
+            item {
+                Surface(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 4.dp), color = Panel.copy(alpha = .86f), shape = RoundedCornerShape(20.dp), border = BorderStroke(1.dp, Violet.copy(alpha = .28f))) {
+                    Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+                        CharacterPortrait(character, Modifier.size(94.dp))
+                        Column(Modifier.weight(1f).padding(start = 12.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                            Text(character.displayName, color = White, fontSize = 17.sp, fontWeight = FontWeight.Bold)
+                            if (character.nameEnglish.isNotBlank()) Text(character.nameEnglish, color = Neon, fontSize = 10.sp)
+                            if (character.nameNative.isNotBlank()) Text(character.nameNative, color = Secondary, fontSize = 10.sp)
+                            OutlinedButton(onClick = { onToggleFavorite(character) }, enabled = !busy, shape = RoundedCornerShape(11.dp), contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp), colors = ButtonDefaults.outlinedButtonColors(contentColor = if (isFavorite) Danger else Neon)) {
+                                Icon(if (isFavorite) Icons.Outlined.Favorite else Icons.Outlined.FavoriteBorder, null, modifier = Modifier.size(15.dp)); Spacer(Modifier.width(5.dp)); Text(if (isFavorite) "إزالة من المفضلة" else "أضف للمفضلة", fontSize = 9.sp)
+                            }
+                        }
+                    }
+                }
+            }
+            item {
+                InfoCard("نبذة", character.about.ifBlank { "لا يوجد وصف موثق لهذه الشخصية حتى الآن." }, Icons.Outlined.Info)
+            }
+            item { SectionHeading("الأعمال المرتبطة", "روابط من قاعدة البيانات", null, null) }
+            if (works.isEmpty() && !loading) item { EmptyInline("لم تُسجل أعمال مرتبطة بهذه الشخصية بعد.", Icons.Outlined.Movie) }
+            items(works, key = { it.kind + it.id }) { work ->
+                Surface(Modifier.fillMaxWidth().padding(horizontal = 14.dp).clickable { onOpenWork(work) }, color = Card.copy(alpha = .9f), shape = RoundedCornerShape(15.dp), border = BorderStroke(1.dp, White.copy(alpha = .08f))) {
+                    Row(Modifier.padding(9.dp), verticalAlignment = Alignment.CenterVertically) {
+                        CatalogPoster(work, Modifier.size(width = 45.dp, height = 60.dp))
+                        Column(Modifier.weight(1f).padding(horizontal = 9.dp)) {
+                            Text(work.displayTitle, color = White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                            Text(if (work.kind == "anime") "أنمي" else "مانغا", color = Secondary, fontSize = 9.sp)
+                        }
+                        Icon(Icons.Outlined.ChevronLeft, null, tint = Neon)
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun CharacterPortrait(character: CharacterItem, modifier: Modifier = Modifier) {
+    if (!character.imageUrl.isNullOrBlank()) AsyncImage(character.imageUrl, character.displayName, modifier.clip(RoundedCornerShape(15.dp)), contentScale = androidx.compose.ui.layout.ContentScale.Crop)
+    else Surface(modifier, color = Violet.copy(alpha = .18f), shape = RoundedCornerShape(15.dp)) {
+        Box(contentAlignment = Alignment.Center) { Icon(Icons.Outlined.Person, null, tint = Neon, modifier = Modifier.size(28.dp)) }
     }
 }
 

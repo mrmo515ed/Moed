@@ -26,6 +26,17 @@ private data class PublicProfile(
     val avatarUrl: String?
 )
 
+data class CharacterItem(
+    val id: String,
+    val nameArabic: String,
+    val nameEnglish: String,
+    val nameNative: String,
+    val imageUrl: String?,
+    val about: String
+) {
+    val displayName: String get() = nameArabic.ifBlank { nameEnglish }
+}
+
 data class CatalogEntry(
     val id: String,
     val kind: String,
@@ -201,6 +212,17 @@ data class AdminReport(
     val postAuthorName: String?
 )
 
+data class QuoteEntry(
+    val id: String,
+    val text: String,
+    val characterName: String,
+    val sourceReference: String?,
+    val tags: List<String>,
+    val likeCount: Int,
+    val createdAt: String,
+    val isLiked: Boolean
+)
+
 data class UserNotification(
     val id: String,
     val actorName: String,
@@ -220,6 +242,8 @@ data class MangaTrackerEntry(
 )
 
 data class MangaWatchEntry(val manga: CatalogEntry, val status: String, val progressChapters: Int, val progressVolumes: Int, val score: Int?)
+
+data class EpisodeScheduleEntry(val id: String, val anime: AnimeItem, val episodeNumber: Int, val airAt: String, val source: String?)
 
 data class WatchEntry(
     val anime: AnimeItem,
@@ -246,6 +270,17 @@ class SocialRepository(private val auth: SupabaseAuthRepository, context: Contex
         val filter = if (term.isNotBlank()) "&or=(title_ar.ilike.*${queryEncode(term)}*,title_en.ilike.*${queryEncode(term)}*)" else ""
         val rows = jsonArray(auth.socialRest("anime?select=id,title_ar,title_en,poster_url,episodes_count,format,status,score&order=popularity.desc.nullslast&limit=100$filter"))
         return (0 until rows.length()).mapNotNull { i -> rows.optJSONObject(i)?.let(::animeFrom) }
+    }
+
+    suspend fun loadEpisodeSchedule(): List<EpisodeScheduleEntry> {
+        val rows = jsonArray(auth.socialRest("episode_schedule?select=id,anime_id,episode_number,air_at,source&air_at=gte.${queryEncode(nowIso())}&order=air_at.asc&limit=100"))
+        val raw = (0 until rows.length()).mapNotNull { rows.optJSONObject(it) }
+        if (raw.isEmpty()) return emptyList()
+        val animeById = animeByIds(raw.map { it.optString("anime_id") }.distinct()).associateBy { it.id }
+        return raw.mapNotNull { row ->
+            val anime = animeById[row.optString("anime_id")] ?: return@mapNotNull null
+            EpisodeScheduleEntry(row.optString("id"), anime, row.optInt("episode_number"), row.optString("air_at"), row.optString("source").takeIf(String::isNotBlank))
+        }
     }
 
     suspend fun loadCatalog(kind: String, search: String = "", status: String = "all"): List<CatalogEntry> {
@@ -287,6 +322,61 @@ class SocialRepository(private val auth: SupabaseAuthRepository, context: Contex
                 if (row.isNull("score")) null else row.optInt("score"))
         }
     }
+
+    suspend fun loadCharacters(search: String = ""): List<CharacterItem> {
+        val term = search.trim()
+        val filter = if (term.isBlank()) "" else "&or=(name_ar.ilike.*${queryEncode(term)}*,name_en.ilike.*${queryEncode(term)}*,name_native.ilike.*${queryEncode(term)}*)"
+        val rows = jsonArray(auth.socialRest("characters?select=id,name_ar,name_en,name_native,image_url,about&order=name_ar.asc.nullslast&limit=100$filter"))
+        return (0 until rows.length()).mapNotNull { rows.optJSONObject(it) }.map(::characterFrom)
+    }
+
+    suspend fun loadCharacterDetail(characterId: String): CharacterItem? {
+        val rows = jsonArray(auth.socialRest("characters?id=eq.$characterId&select=id,name_ar,name_en,name_native,image_url,about&limit=1"))
+        return rows.optJSONObject(0)?.let(::characterFrom)
+    }
+
+    suspend fun loadCharacterWorks(characterId: String): List<CatalogEntry> {
+        val animeLinks = jsonArray(auth.socialRest("anime_characters?character_id=eq.$characterId&select=anime_id&limit=100"))
+        val mangaLinks = jsonArray(auth.socialRest("manga_characters?character_id=eq.$characterId&select=manga_id&limit=100"))
+        val animeIds = (0 until animeLinks.length()).mapNotNull { animeLinks.optJSONObject(it)?.optString("anime_id")?.takeIf(String::isNotBlank) }
+        val mangaIds = (0 until mangaLinks.length()).mapNotNull { mangaLinks.optJSONObject(it)?.optString("manga_id")?.takeIf(String::isNotBlank) }
+        val anime = loadCatalogEntriesByIds("anime", animeIds)
+        val manga = loadCatalogEntriesByIds("manga", mangaIds)
+        return anime + manga
+    }
+
+    suspend fun loadFavoriteCharacterIds(userId: String): Set<String> {
+        val rows = jsonArray(auth.socialRest("profile_favorite_characters?user_id=eq.$userId&select=character_id&order=rank.asc&limit=9"))
+        return (0 until rows.length()).mapNotNull { rows.optJSONObject(it)?.optString("character_id")?.takeIf(String::isNotBlank) }.toSet()
+    }
+
+    suspend fun toggleFavoriteCharacter(userId: String, characterId: String, isFavorite: Boolean) {
+        if (isFavorite) {
+            auth.socialRest("profile_favorite_characters?user_id=eq.$userId&character_id=eq.$characterId", "DELETE")
+            return
+        }
+        val current = jsonArray(auth.socialRest("profile_favorite_characters?user_id=eq.$userId&select=rank&order=rank.asc&limit=9"))
+        val ranks = (0 until current.length()).mapNotNull { current.optJSONObject(it)?.optInt("rank") }.toSet()
+        val nextRank = (1..9).firstOrNull { it !in ranks } ?: throw AuthException("وصلت إلى الحد الأقصى وهو 9 شخصيات مفضلة.")
+        auth.socialRest("profile_favorite_characters", "POST", jsonObject {
+            put("user_id", userId); put("character_id", characterId); put("rank", nextRank)
+        }.toString())
+    }
+
+    private suspend fun loadCatalogEntriesByIds(kind: String, ids: List<String>): List<CatalogEntry> {
+        if (ids.isEmpty()) return emptyList()
+        require(kind == "anime" || kind == "manga")
+        val columns = if (kind == "anime") "id,title_ar,title_en,poster_url,banner_url,synopsis_ar,format,status,episodes_count,score,popularity,season,season_year,age_rating,is_nsfw"
+            else "id,title_ar,title_en,poster_url,banner_url,synopsis_ar,format,status,chapters_count,score,popularity,is_nsfw"
+        val rows = jsonArray(auth.socialRest("$kind?id=${inClause(ids)}&is_nsfw=eq.false&select=$columns&limit=100"))
+        return (0 until rows.length()).mapNotNull { rows.optJSONObject(it) }.map { catalogFrom(it, kind) }
+    }
+
+    private fun characterFrom(row: JSONObject) = CharacterItem(
+        id = row.optString("id"), nameArabic = row.optString("name_ar"), nameEnglish = row.optString("name_en"),
+        nameNative = row.optString("name_native"), imageUrl = row.optString("image_url").takeIf(String::isNotBlank),
+        about = row.optString("about")
+    )
 
     suspend fun loadMangaTrackerEntry(userId: String, mangaId: String): MangaTrackerEntry? {
         val rows = jsonArray(auth.socialRest("manga_tracker_entries?user_id=eq.$userId&manga_id=eq.$mangaId&select=manga_id,status,progress_chapters,progress_volumes,score&limit=1"))
@@ -475,6 +565,26 @@ class SocialRepository(private val auth: SupabaseAuthRepository, context: Contex
 
     suspend fun addPostComment(userId: String, postId: String, body: String) {
         auth.socialRest("post_comments", "POST", jsonObject { put("post_id", postId); put("author_id", userId); put("body", body.trim()) }.toString())
+    }
+
+    suspend fun loadApprovedQuotes(userId: String): List<QuoteEntry> {
+        val rows = jsonArray(auth.socialRest("quotes?status=eq.approved&select=id,text_ar,character_name,source_reference,tags,likes_count,created_at&order=created_at.desc&limit=100"))
+        val raw = (0 until rows.length()).mapNotNull { rows.optJSONObject(it) }
+        if (raw.isEmpty()) return emptyList()
+        val likedRows = jsonArray(auth.socialRest("quote_likes?user_id=eq.$userId&select=quote_id&limit=500"))
+        val likedIds = (0 until likedRows.length()).mapNotNull { likedRows.optJSONObject(it)?.optString("quote_id")?.takeIf(String::isNotBlank) }.toSet()
+        return raw.map { row ->
+            val tagsJson = row.optJSONArray("tags")
+            val tags = if (tagsJson == null) emptyList() else (0 until tagsJson.length()).mapNotNull { tagsJson.optString(it).takeIf(String::isNotBlank) }
+            QuoteEntry(row.optString("id"), row.optString("text_ar"), row.optString("character_name"),
+                row.optString("source_reference").takeIf(String::isNotBlank), tags, row.optInt("likes_count"), row.optString("created_at"),
+                row.optString("id") in likedIds)
+        }
+    }
+
+    suspend fun toggleQuoteLike(userId: String, quoteId: String, isLiked: Boolean) {
+        if (isLiked) auth.socialRest("quote_likes?quote_id=eq.$quoteId&user_id=eq.$userId", "DELETE")
+        else auth.socialRest("quote_likes", "POST", jsonObject { put("quote_id", quoteId); put("user_id", userId) }.toString())
     }
 
     suspend fun loadProfileRole(userId: String): String {
