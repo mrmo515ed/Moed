@@ -439,7 +439,8 @@ fun AnimeBlackSocialApp(
                     )
                     SocialPage.MORE -> MorePage(user, stats, pageBusy,
                         onEditProfile = onEditProfile,
-                        onStore = { page = SocialPage.STORE },
+                        onPublicProfile = { publicProfileReturnPage = SocialPage.MORE; profileFollowing = false; selectedProfile = com.animeblack.app.auth.PublicProfileResult(user.id, user.displayName, user.username, user.avatarUrl, user.bio); page = SocialPage.PUBLIC_PROFILE },
+                        onStore = { page = SocialPage.STORE }
                         onLibrary = { libraryTab = "anime"; page = SocialPage.LIBRARY },
                         onCatalog = { catalogKind = "anime"; catalogSearch = ""; page = SocialPage.CATALOG },
                         onCharacters = { characterSearch = ""; onlyFavoriteCharacters = false; page = SocialPage.CHARACTERS },
@@ -1258,7 +1259,7 @@ private fun ReelsPage(
 
 @Composable
 private fun MorePage(
-    user: AuthUser, stats: UserStats?, busy: Boolean, onEditProfile: () -> Unit, onStore: () -> Unit,
+    user: AuthUser, stats: UserStats?, busy: Boolean, onEditProfile: () -> Unit, onPublicProfile: () -> Unit, onStore: () -> Unit,
     onWatchlist: () -> Unit, onLibrary: () -> Unit, onCatalog: () -> Unit, onCharacters: () -> Unit, onSchedule: () -> Unit, onQuotes: () -> Unit, onReviews: () -> Unit, onMangaList: () -> Unit, isAdmin: Boolean, onAdmin: () -> Unit, onAchievements: () -> Unit, onTheme: () -> Unit, pureBlack: Boolean,
     onPrivacy: () -> Unit, onSignOut: () -> Unit
 ) {
@@ -1285,6 +1286,7 @@ private fun MorePage(
                 }
             }
         }
+        item { ActionSetting(Icons.Outlined.AccountCircle, "عرض ملفي العام", "شاهد صفحتك كما يراها أعضاء المجتمع", onPublicProfile) }
         item { ActionSetting(Icons.Outlined.Storefront, "إطارات الملف الشخصي", "افتح الإطارات المتاحة بحسب مستواك", onStore) }
         item { ActionSetting(Icons.Outlined.LibraryBooks, "مكتبتي", "قوائم الأنمي والمانغا والمفضلات", onLibrary) }
         item { ActionSetting(Icons.Outlined.LibraryBooks, "قائمة متابعة الأنمي", "حالة المشاهدة والتقدم المسجل", onWatchlist) }
