@@ -249,7 +249,7 @@ fun AnimeBlackSocialApp(
 
     Scaffold(
         containerColor = background,
-        snackbarHost = { SnackbarHost(it) },
+        snackbarHost = { hostState -> SnackbarHost(hostState) },
         bottomBar = {
             if (bottomVisible) SocialBottomBar(tab, ::navigateTab)
         }
@@ -1105,7 +1105,7 @@ private fun CreatePostPage(
                 Text("وسوم سريعة", color = Secondary, fontSize = 10.sp)
                 Spacer(Modifier.height(4.dp))
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    items(listOf("#نظريات_أنمي", "#تسريبات", "#مراجعة")) { tag -> AssistChip(onClick = { content = (content.trimEnd() + " " + tag).trim(); validation = null }, label = { Text(tag, fontSize = 10.sp) }, colors = chipColors()) }
+                    items(listOf("#نظريات_أنمي", "#تسريبات", "#مراجعة")) { tag -> AssistChip(onClick = { content = (content.trimEnd() + " " + tag).trim(); validation = null }, label = { Text(tag, fontSize = 10.sp) }, colors = AssistChipDefaults.assistChipColors(containerColor = Panel, labelColor = Secondary)) }
                 }
             }
             if (type == "review") item {
