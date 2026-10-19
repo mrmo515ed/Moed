@@ -188,6 +188,19 @@ data class FrameItem(
     val isActive: Boolean
 )
 
+data class AdminMetrics(val users: Int, val posts: Int, val communities: Int, val reels: Int, val pendingReports: Int)
+
+data class AdminReport(
+    val id: String,
+    val postId: String,
+    val reason: String,
+    val reportedAt: String,
+    val status: String,
+    val moderatorNote: String?,
+    val postContent: String?,
+    val postAuthorName: String?
+)
+
 data class UserNotification(
     val id: String,
     val actorName: String,
@@ -462,6 +475,37 @@ class SocialRepository(private val auth: SupabaseAuthRepository, context: Contex
 
     suspend fun addPostComment(userId: String, postId: String, body: String) {
         auth.socialRest("post_comments", "POST", jsonObject { put("post_id", postId); put("author_id", userId); put("body", body.trim()) }.toString())
+    }
+
+    suspend fun loadProfileRole(userId: String): String {
+        val rows = jsonArray(auth.socialRest("profiles?id=eq.$userId&select=role&limit=1"))
+        return rows.optJSONObject(0)?.optString("role")?.lowercase(Locale.ROOT) ?: "member"
+    }
+
+    suspend fun loadAdminMetrics(): AdminMetrics {
+        val result = JSONObject(auth.socialRest("rpc/admin_dashboard_metrics", "POST", "{}"))
+        return AdminMetrics(result.optInt("users"), result.optInt("posts"), result.optInt("communities"),
+            result.optInt("reels"), result.optInt("pending_reports"))
+    }
+
+    suspend fun loadAdminReports(pendingOnly: Boolean = true): List<AdminReport> {
+        val rows = jsonArray(auth.socialRest("rpc/admin_list_reports", "POST", jsonObject { put("p_pending_only", pendingOnly) }.toString()))
+        return (0 until rows.length()).mapNotNull { rows.optJSONObject(it) }.map { row ->
+            AdminReport(
+                id = row.optString("report_id"), postId = row.optString("post_id"),
+                reason = row.optString("reason"), reportedAt = row.optString("reported_at"),
+                status = row.optString("status"), moderatorNote = row.optString("moderator_note").takeIf(String::isNotBlank),
+                postContent = row.optString("post_content").takeIf(String::isNotBlank),
+                postAuthorName = row.optString("post_author_name").takeIf(String::isNotBlank)
+            )
+        }
+    }
+
+    suspend fun reviewPostReport(reportId: String, status: String, note: String? = null) {
+        require(status == "resolved" || status == "dismissed") { "حالة البلاغ غير صالحة." }
+        auth.socialRest("rpc/review_post_report", "POST", jsonObject {
+            put("p_report_id", reportId); put("p_status", status); put("p_note", note ?: JSONObject.NULL)
+        }.toString())
     }
 
     suspend fun reportPost(userId: String, postId: String, reason: String) {

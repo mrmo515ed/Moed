@@ -11,6 +11,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
@@ -46,6 +47,8 @@ import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.PlayerView
 import coil.compose.AsyncImage
 import com.animeblack.app.auth.AchievementItem
+import com.animeblack.app.auth.AdminMetrics
+import com.animeblack.app.auth.AdminReport
 import com.animeblack.app.auth.AnimeItem
 import com.animeblack.app.auth.AuthException
 import com.animeblack.app.auth.AuthUser
@@ -69,14 +72,14 @@ import com.animeblack.app.auth.timeAgo
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
-private val Black = Color(0xFF050608)
-private val Canvas = Color(0xFF090B12)
-private val Panel = Color(0xFF10131D)
-private val Card = Color(0xFF131622)
-private val Raised = Color(0xFF1A1E2E)
-private val Neon = Color(0xFF00E5FF)
-private val Violet = Color(0xFF7C4DFF)
-private val Gold = Color(0xFFFFB300)
+private val Black = Color(0xFF070711)
+private val Canvas = Color(0xFF0A0C1B)
+private val Panel = Color(0xE5121630)
+private val Card = Color(0xE7191D3A)
+private val Raised = Color(0xEC252A50)
+private val Neon = Color(0xFF49C8FF)
+private val Violet = Color(0xFF8A4DFF)
+private val Gold = Color(0xFFFFC45E)
 private val White = Color(0xFFF8FAFC)
 private val Secondary = Color(0xFF94A3B8)
 private val Tertiary = Color(0xFF64748B)
@@ -88,7 +91,7 @@ private enum class SocialPage {
     HOME, COMMUNITY, CHAT, REELS, MORE, CREATE_POST, SEARCH, NOTIFICATIONS,
     COMMUNITY_CREATE, COMMUNITY_DETAIL, CHAT_NEW, CHAT_ROOM, POST_COMMENTS,
     REEL_COMMENTS, REEL_CREATE, STORE, WATCHLIST, ACHIEVEMENTS, PRIVACY,
-    STORY_VIEWER, PUBLIC_PROFILE, CATALOG, CATALOG_DETAIL, MANGA_WATCHLIST
+    STORY_VIEWER, PUBLIC_PROFILE, CATALOG, CATALOG_DETAIL, MANGA_WATCHLIST, ADMIN
 }
 
 @Composable
@@ -118,6 +121,10 @@ fun AnimeBlackSocialApp(
     var favoriteAnimeIds by remember { mutableStateOf<Set<String>>(emptySet()) }
     var mangaTracker by remember { mutableStateOf<MangaTrackerEntry?>(null) }
     var mangaWatchlist by remember { mutableStateOf<List<MangaWatchEntry>>(emptyList()) }
+    var adminRole by remember { mutableStateOf("member") }
+    var adminMetrics by remember { mutableStateOf<AdminMetrics?>(null) }
+    var adminReports by remember { mutableStateOf<List<AdminReport>>(emptyList()) }
+    var adminPendingOnly by rememberSaveable { mutableStateOf(true) }
     var newChatQuery by rememberSaveable { mutableStateOf("") }
     var selectedCommunityId by rememberSaveable { mutableStateOf<String?>(null) }
     var postingCommunityId by rememberSaveable { mutableStateOf<String?>(null) }
@@ -131,6 +138,7 @@ fun AnimeBlackSocialApp(
     var selectedProfile by remember { mutableStateOf<com.animeblack.app.auth.PublicProfileResult?>(null) }
     var profileFollowing by remember { mutableStateOf(false) }
     var feed by remember { mutableStateOf<List<SocialPost>>(emptyList()) }
+    var homeCatalog by remember { mutableStateOf<List<CatalogEntry>>(emptyList()) }
     var stories by remember { mutableStateOf<List<StoryItem>>(emptyList()) }
     var communities by remember { mutableStateOf<List<CommunityItem>>(emptyList()) }
     var chats by remember { mutableStateOf<List<ChatSummary>>(emptyList()) }
@@ -192,7 +200,7 @@ fun AnimeBlackSocialApp(
     }
     BackHandler(enabled = page != homePageForTab(tab)) { navigateBack() }
 
-    LaunchedEffect(page, tab, feedFilter, communityFilter, communityQuery, searchQuery, newChatQuery, watchSearch, catalogSearch, catalogKind, selectedCatalogId, selectedCommunityId, selectedChatId, refresh) {
+    LaunchedEffect(page, tab, feedFilter, communityFilter, communityQuery, searchQuery, newChatQuery, watchSearch, catalogSearch, catalogKind, selectedCatalogId, selectedCommunityId, selectedChatId, adminPendingOnly, refresh) {
         if ((page == SocialPage.SEARCH && searchQuery.isNotBlank()) ||
             (page == SocialPage.CHAT_NEW && newChatQuery.isNotBlank()) ||
             (page == SocialPage.COMMUNITY && communityQuery.isNotBlank()) ||
@@ -203,7 +211,9 @@ fun AnimeBlackSocialApp(
         try {
             when (page) {
                 SocialPage.HOME -> {
+                    adminRole = repository.loadProfileRole(user.id)
                     feed = repository.loadFeed(user.id, feedFilter)
+                    homeCatalog = repository.loadCatalog("anime").take(12)
                     stories = repository.loadStories()
                     communities = repository.loadCommunities(user.id).take(12)
                     stats = repository.loadProfileStats(user.id)
@@ -221,7 +231,10 @@ fun AnimeBlackSocialApp(
                     }
                 }
                 SocialPage.REELS -> reels = repository.loadReels(user.id)
-                SocialPage.MORE -> stats = repository.loadProfileStats(user.id)
+                SocialPage.MORE -> {
+                    stats = repository.loadProfileStats(user.id)
+                    adminRole = repository.loadProfileRole(user.id)
+                }
                 SocialPage.SEARCH -> searchResults = repository.searchAll(user.id, searchQuery)
                 SocialPage.NOTIFICATIONS -> notifications = repository.loadNotifications(user.id)
                 SocialPage.CHAT_NEW -> peopleResults = if (newChatQuery.isBlank()) emptyList() else repository.searchProfiles(newChatQuery)
@@ -238,6 +251,15 @@ fun AnimeBlackSocialApp(
                 }
                 SocialPage.CATALOG -> catalogItems = repository.loadCatalog(catalogKind, catalogSearch)
                 SocialPage.MANGA_WATCHLIST -> mangaWatchlist = repository.loadMangaWatchlist(user.id)
+                SocialPage.ADMIN -> {
+                    if (adminRole in setOf("admin", "moderator")) {
+                        adminMetrics = repository.loadAdminMetrics()
+                        adminReports = repository.loadAdminReports(adminPendingOnly)
+                    } else {
+                        page = SocialPage.MORE
+                        notice = "هذه الصفحة مخصصة لفريق الإدارة."
+                    }
+                }
                 SocialPage.CATALOG_DETAIL -> {
                     val id = selectedCatalogId
                     if (id != null) {
@@ -284,12 +306,15 @@ fun AnimeBlackSocialApp(
             if (bottomVisible) SocialBottomBar(tab, ::navigateTab)
         }
     ) { insets ->
-        Box(Modifier.fillMaxSize().padding(insets)) {
+        Box(Modifier.fillMaxSize().padding(insets).background(Brush.verticalGradient(listOf(Color(0xFF15152F), background, Black)))) {
             Column(Modifier.fillMaxSize()) {
                 notice?.let { NoticeBanner(it, onDismiss = { notice = null }) }
                 when (page) {
                     SocialPage.HOME -> HomePage(
-                        user, stats, stories, communities, feed, feedFilter, loading, pageBusy, hideSpoilers,
+                        user, stats, stories, communities, feed, homeCatalog, feedFilter, loading, pageBusy, hideSpoilers,
+                        onOpenCatalog = { kind -> catalogKind = kind; catalogSearch = ""; page = SocialPage.CATALOG },
+                        onNavigateReels = { navigateTab(MainTab.REELS) },
+                        onOpenAnime = { entry -> catalogKind = "anime"; catalogReturnPage = SocialPage.HOME; catalogDetail = entry; selectedCatalogId = entry.id; mangaTracker = null; page = SocialPage.CATALOG_DETAIL },
                         onSearch = { page = SocialPage.SEARCH },
                         onNotifications = { page = SocialPage.NOTIFICATIONS },
                         onProfile = { navigateTab(MainTab.MORE) },
@@ -362,6 +387,8 @@ fun AnimeBlackSocialApp(
                         onStore = { page = SocialPage.STORE },
                         onCatalog = { catalogKind = "anime"; catalogSearch = ""; page = SocialPage.CATALOG },
                         onMangaList = { page = SocialPage.MANGA_WATCHLIST },
+                        isAdmin = adminRole in setOf("admin", "moderator"),
+                        onAdmin = { adminPendingOnly = true; page = SocialPage.ADMIN },
                         onWatchlist = { watchSearch = ""; page = SocialPage.WATCHLIST },
                         onAchievements = { page = SocialPage.ACHIEVEMENTS },
                         onTheme = {
@@ -371,6 +398,9 @@ fun AnimeBlackSocialApp(
                         onPrivacy = { page = SocialPage.PRIVACY },
                         onSignOut = onSignOut
                     )
+                    SocialPage.ADMIN -> AdminPage(adminRole, adminMetrics, adminReports, adminPendingOnly, loading, pageBusy, onBack,
+                        onRefresh = { refresh++ }, onPendingFilter = { adminPendingOnly = it },
+                        onReview = { report, status -> runAction({ repository.reviewPostReport(report.id, status) }, after = { notice = if (status == "resolved") "تم تسجيل مراجعة البلاغ." else "تم إغلاق البلاغ باعتباره غير مستوفٍ." }) })
                     SocialPage.CREATE_POST -> CreatePostPage(
                         sessionKey = createSessionId,
                         initialType = draftPostType,
@@ -492,7 +522,11 @@ private fun SocialBottomBar(selected: MainTab, onSelect: (MainTab) -> Unit) {
         Triple(MainTab.REELS, "المقاطع", Icons.Outlined.Movie),
         Triple(MainTab.MORE, "المزيد", Icons.Outlined.MoreHoriz)
     )
-    NavigationBar(containerColor = Color(0xF20D111B), tonalElevation = 0.dp) {
+    NavigationBar(
+        modifier = Modifier.padding(horizontal = 9.dp, vertical = 5.dp).clip(RoundedCornerShape(22.dp))
+            .border(1.dp, White.copy(alpha = .11f), RoundedCornerShape(22.dp)),
+        containerColor = Color(0xE310122B), tonalElevation = 8.dp
+    ) {
         items.forEach { (tab, title, icon) ->
             NavigationBarItem(
                 selected = selected == tab,
@@ -508,8 +542,9 @@ private fun SocialBottomBar(selected: MainTab, onSelect: (MainTab) -> Unit) {
 
 @Composable
 private fun HomePage(
-    user: AuthUser, stats: UserStats?, stories: List<StoryItem>, communities: List<CommunityItem>, posts: List<SocialPost>,
+    user: AuthUser, stats: UserStats?, stories: List<StoryItem>, communities: List<CommunityItem>, posts: List<SocialPost>, catalog: List<CatalogEntry>,
     filter: String, loading: Boolean, busy: Boolean, hideSpoilers: Boolean,
+    onOpenCatalog: (String) -> Unit, onOpenAnime: (CatalogEntry) -> Unit, onNavigateReels: () -> Unit,
     onSearch: () -> Unit, onNotifications: () -> Unit, onProfile: () -> Unit, onCreatePost: (String, Boolean) -> Unit,
     onCreateStory: () -> Unit, onViewStory: (StoryItem) -> Unit, onCommunity: (CommunityItem) -> Unit,
     onExploreCommunities: () -> Unit, onFilter: (String) -> Unit, onLike: (SocialPost) -> Unit,
@@ -546,7 +581,14 @@ private fun HomePage(
                 }
             }
         }
+        item {
+            if (catalog.isNotEmpty()) HeroAnimeCard(catalog.first(), onOpenAnime)
+            else InfoCard("اكتشف الكتالوج", "تصفّح العناوين المسجلة فعليًا في Anime Black.", Icons.Outlined.LibraryBooks)
+        }
+        item { HomeProfileSummary(user, stats, onProfile) }
+        if (catalog.isNotEmpty()) item { PopularAnimeStrip(catalog, onOpenAnime, onOpenCatalog) }
         item { StoriesStrip(user, stories, onCreateStory, onViewStory) }
+        item { DiscoveryShortcuts(onOpenCatalog, onExploreCommunities, onNavigateReels) }
         item { UserStatusCard(stats, onQuest, onRefresh) }
         item { CreatePostCard(user, onCreatePost) }
         item {
@@ -557,6 +599,7 @@ private fun HomePage(
                 items(communities, key = { it.id }) { CommunityMiniCard(it, onOpen = { onCommunity(it) }) }
             }
         }
+        item { SectionHeading("أحدث المنشورات", "نقاشات حقيقية من المجتمع", null, null) }
         item {
             LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 val filters = listOf("all" to "لك", "following" to "أتابعهم", "latest" to "الأحدث", "trending" to "الأكثر تفاعلًا", "reviews" to "المراجعات", "theories" to "النظريات")
@@ -570,6 +613,94 @@ private fun HomePage(
         if (!loading && posts.isEmpty()) item { EmptyState("لا توجد منشورات في هذه الخلاصة", "ابدأ النقاش أو تابع المجتمعات ليظهر لك محتوى أكثر.", Icons.Outlined.Forum, { onCreatePost("general", false) }, "إنشاء أول منشور") }
         items(posts, key = { it.id }) { post ->
             PostCard(post, user.id, hideSpoilers, busy, onLike, onComments, onSave, onShare, onMore, onVote, onAddAnime)
+        }
+    }
+}
+
+@Composable
+private fun HeroAnimeCard(entry: CatalogEntry, onOpen: (CatalogEntry) -> Unit) {
+    Surface(
+        Modifier.fillMaxWidth().height(218.dp).clickable { onOpen(entry) },
+        color = Card, shape = RoundedCornerShape(23.dp), border = BorderStroke(1.dp, Violet.copy(alpha = .45f)),
+        shadowElevation = 12.dp
+    ) {
+        Box {
+            val image = entry.bannerUrl ?: entry.posterUrl
+            if (!image.isNullOrBlank()) AsyncImage(image, entry.displayTitle, Modifier.fillMaxSize(), contentScale = androidx.compose.ui.layout.ContentScale.Crop)
+            Box(Modifier.fillMaxSize().background(Brush.horizontalGradient(listOf(Color(0xAA090A18), Color(0x18090A18), Color(0xE6090A18)))))
+            Column(Modifier.align(Alignment.BottomEnd).fillMaxWidth(.76f).padding(15.dp), verticalArrangement = Arrangement.spacedBy(6.dp), horizontalAlignment = Alignment.End) {
+                Text("اختيار من الكتالوج", color = Neon, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                Text(entry.displayTitle, color = White, fontSize = 20.sp, fontWeight = FontWeight.Black, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                Text("${entry.format.ifBlank { "أنمي" }} · ${if (entry.score > 0) "${"%.1f".format(entry.score)} / 10" else "لا يوجد تقييم مسجل"}", color = White.copy(alpha = .85f), fontSize = 10.sp)
+                Text(entry.synopsis.ifBlank { "افتح التفاصيل لمشاهدة معلومات هذا العنوان." }, color = White.copy(alpha = .78f), fontSize = 10.sp, maxLines = 2, overflow = TextOverflow.Ellipsis, lineHeight = 15.sp)
+                Button(onClick = { onOpen(entry) }, shape = RoundedCornerShape(12.dp), colors = ButtonDefaults.buttonColors(containerColor = Violet, contentColor = White), contentPadding = PaddingValues(horizontal = 15.dp, vertical = 7.dp)) {
+                    Text("عرض التفاصيل", fontSize = 10.sp); Spacer(Modifier.width(5.dp)); Icon(Icons.Outlined.ChevronLeft, null, modifier = Modifier.size(15.dp))
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun HomeProfileSummary(user: AuthUser, stats: UserStats?, onProfile: () -> Unit) {
+    Surface(Modifier.fillMaxWidth().clickable(onClick = onProfile), color = Panel.copy(alpha = .82f), shape = RoundedCornerShape(21.dp),
+        border = BorderStroke(1.dp, White.copy(alpha = .1f))) {
+        Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+            Avatar(user.avatarUrl, user.displayName, Modifier.size(57.dp))
+            Column(Modifier.weight(1f).padding(horizontal = 11.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(user.displayName, color = White, fontSize = 13.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text("@${user.username.ifBlank { user.email.substringBefore('@') }}", color = Secondary, fontSize = 9.sp)
+                Text("${stats?.levelTitle ?: "مستكشف"} · المستوى ${stats?.level ?: 1}", color = Gold, fontSize = 10.sp, fontWeight = FontWeight.SemiBold)
+                Text("${stats?.postCount ?: 0} منشور · ${stats?.trackedCount ?: 0} عمل متابع · ${stats?.xp ?: 0} XP", color = Secondary, fontSize = 9.sp)
+            }
+            Icon(Icons.Outlined.ChevronLeft, null, tint = Neon)
+        }
+    }
+}
+
+@Composable
+private fun PopularAnimeStrip(entries: List<CatalogEntry>, onOpen: (CatalogEntry) -> Unit, onExplore: (String) -> Unit) {
+    Column {
+        SectionHeading("الأكثر رواجًا", "مرتبة حسب بيانات الكتالوج", "الكتالوج", { onExplore("anime") })
+        Spacer(Modifier.height(9.dp))
+        LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            items(entries.take(10), key = { it.id }) { entry ->
+                Surface(Modifier.width(126.dp).clickable { onOpen(entry) }, color = Card.copy(alpha = .9f), shape = RoundedCornerShape(17.dp), border = BorderStroke(1.dp, White.copy(alpha = .1f))) {
+                    Column {
+                        CatalogPoster(entry, Modifier.fillMaxWidth().height(152.dp))
+                        Text(entry.displayTitle, color = White, fontSize = 10.sp, fontWeight = FontWeight.Bold, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(horizontal = 9.dp, vertical = 7.dp))
+                        Row(Modifier.padding(start = 8.dp, end = 8.dp, bottom = 9.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Outlined.Star, null, tint = Gold, modifier = Modifier.size(13.dp))
+                            Text(if (entry.score > 0) "${"%.1f".format(entry.score)} / 10" else "غير مصنّف", color = Secondary, fontSize = 8.sp, modifier = Modifier.padding(start = 4.dp))
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun DiscoveryShortcuts(onCatalog: (String) -> Unit, onCommunities: () -> Unit, onReels: () -> Unit) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        SectionHeading("استكشف Anime Black", "مساحات مبنية على المحتوى المتاح", null, null)
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            FeatureShortcut("الأنمي", Icons.Outlined.Movie, Modifier.weight(1f)) { onCatalog("anime") }
+            FeatureShortcut("المانغا", Icons.Outlined.LibraryBooks, Modifier.weight(1f)) { onCatalog("manga") }
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            FeatureShortcut("المجتمعات", Icons.Outlined.Groups, Modifier.weight(1f), onCommunities)
+            FeatureShortcut("المقاطع", Icons.Outlined.Movie, Modifier.weight(1f), onReels)
+        }
+    }
+}
+
+@Composable
+private fun FeatureShortcut(label: String, icon: ImageVector, modifier: Modifier = Modifier, onClick: () -> Unit) {
+    Surface(modifier.clickable(onClick = onClick), color = Panel.copy(alpha = .78f), shape = RoundedCornerShape(14.dp), border = BorderStroke(1.dp, White.copy(alpha = .08f))) {
+        Row(Modifier.padding(horizontal = 11.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+            Icon(icon, null, tint = Neon, modifier = Modifier.size(18.dp))
+            Text(label, color = White, fontSize = 10.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(start = 8.dp))
         }
     }
 }
@@ -1032,7 +1163,7 @@ private fun ReelsPage(
 @Composable
 private fun MorePage(
     user: AuthUser, stats: UserStats?, busy: Boolean, onEditProfile: () -> Unit, onStore: () -> Unit,
-    onWatchlist: () -> Unit, onCatalog: () -> Unit, onMangaList: () -> Unit, onAchievements: () -> Unit, onTheme: () -> Unit, pureBlack: Boolean,
+    onWatchlist: () -> Unit, onCatalog: () -> Unit, onMangaList: () -> Unit, isAdmin: Boolean, onAdmin: () -> Unit, onAchievements: () -> Unit, onTheme: () -> Unit, pureBlack: Boolean,
     onPrivacy: () -> Unit, onSignOut: () -> Unit
 ) {
     LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -1060,9 +1191,10 @@ private fun MorePage(
         }
         item { ActionSetting(Icons.Outlined.Storefront, "إطارات الملف الشخصي", "افتح الإطارات المتاحة بحسب مستواك", onStore) }
         item { ActionSetting(Icons.Outlined.LibraryBooks, "قائمة متابعة الأنمي", "حالة المشاهدة والتقدم المسجل", onWatchlist) }
-        item { ActionSetting(Icons.Outlined.MenuBook, "قائمة المانغا", "حالة القراءة والفصول التي سجلتها", onMangaList) }
-        item { ActionSetting(Icons.Outlined.AutoStories, "كتالوج الأنمي والمانغا", "استكشف العناوين المسجلة في قاعدة البيانات", onCatalog) }
+        item { ActionSetting(Icons.Outlined.LibraryBooks, "قائمة المانغا", "حالة القراءة والفصول التي سجلتها", onMangaList) }
+        item { ActionSetting(Icons.Outlined.LibraryBooks, "كتالوج الأنمي والمانغا", "استكشف العناوين المسجلة في قاعدة البيانات", onCatalog) }
         item { ActionSetting(Icons.Outlined.EmojiEvents, "الإنجازات", "إنجازاتك وتقدمك في المجتمع", onAchievements) }
+        if (isAdmin) item { ActionSetting(Icons.Outlined.Settings, "لوحة الإدارة", "مراجعة البلاغات وإحصاءات المنصة", onAdmin) }
         item { ActionSetting(Icons.Outlined.Settings, "الخصوصية والتفضيلات", "الحرق، تشغيل المقاطع، والمظهر", onPrivacy) }
         item {
             Surface(Modifier.fillMaxWidth().clickable(onClick = onTheme), color = Panel, shape = RoundedCornerShape(16.dp), border = BorderStroke(1.dp, Color(0x2236475B))) {
@@ -1078,6 +1210,87 @@ private fun MorePage(
 }
 
 @Composable
+private fun AdminPage(
+    role: String, metrics: AdminMetrics?, reports: List<AdminReport>, pendingOnly: Boolean,
+    loading: Boolean, busy: Boolean, onBack: () -> Unit, onRefresh: () -> Unit,
+    onPendingFilter: (Boolean) -> Unit, onReview: (AdminReport, String) -> Unit
+) {
+    Column(Modifier.fillMaxSize()) {
+        PageTopBar("لوحة الإدارة", onBack, Icons.Outlined.Refresh, onRefresh)
+        Text(if (role == "admin") "صلاحية مالك المنصة" else "صلاحية مشرف المحتوى", color = Gold, fontSize = 10.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 16.dp, vertical = 3.dp))
+        if (metrics != null) {
+            Row(Modifier.fillMaxWidth().padding(horizontal = 13.dp, vertical = 5.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                AdminMetricTile("${metrics.pendingReports}", "بلاغ معلّق", Icons.Outlined.ReportProblem, Danger, Modifier.weight(1f))
+                AdminMetricTile("${metrics.users}", "حساب", Icons.Outlined.Person, Neon, Modifier.weight(1f))
+            }
+            Row(Modifier.fillMaxWidth().padding(horizontal = 13.dp, vertical = 3.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                AdminMetricTile("${metrics.posts}", "منشور", Icons.Outlined.Forum, Violet, Modifier.weight(1f))
+                AdminMetricTile("${metrics.communities}", "مجتمع", Icons.Outlined.Groups, Good, Modifier.weight(1f))
+            }
+        }
+        Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            FilterChip(selected = pendingOnly, onClick = { onPendingFilter(true) }, label = { Text("معلّقة") }, colors = chipColors())
+            FilterChip(selected = !pendingOnly, onClick = { onPendingFilter(false) }, label = { Text("كل البلاغات") }, colors = chipColors())
+        }
+        if (loading && reports.isEmpty()) LoadingPanel("جارٍ تحميل البلاغات")
+        if (!loading && reports.isEmpty()) EmptyInline(if (pendingOnly) "لا توجد بلاغات معلّقة." else "لا توجد بلاغات مسجلة." , Icons.Outlined.Info)
+        else LazyColumn(Modifier.weight(1f), contentPadding = PaddingValues(horizontal = 14.dp, vertical = 5.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
+            items(reports, key = { it.id }) { report ->
+                AdminReportCard(report, busy, onReview)
+            }
+        }
+        Text("إجراءات هذه الصفحة تُسجّل في سجل التدقيق. إغلاق البلاغ لا يحذف المحتوى تلقائيًا.", color = Tertiary, fontSize = 9.sp, lineHeight = 14.sp, modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
+    }
+}
+
+@Composable
+private fun AdminMetricTile(value: String, label: String, icon: ImageVector, tint: Color, modifier: Modifier = Modifier) {
+    Surface(modifier, color = Panel.copy(alpha = .88f), shape = RoundedCornerShape(15.dp), border = BorderStroke(1.dp, White.copy(alpha = .08f))) {
+        Row(Modifier.padding(horizontal = 12.dp, vertical = 11.dp), verticalAlignment = Alignment.CenterVertically) {
+            Icon(icon, null, tint = tint, modifier = Modifier.size(20.dp))
+            Column(Modifier.padding(start = 9.dp)) {
+                Text(value, color = White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                Text(label, color = Secondary, fontSize = 9.sp)
+            }
+        }
+    }
+}
+
+private fun reportStatusLabel(status: String): String = when (status) {
+    "pending" -> "معلّق"
+    "resolved" -> "تمت مراجعته"
+    "dismissed" -> "مرفوض"
+    else -> status
+}
+
+@Composable
+private fun AdminReportCard(report: AdminReport, busy: Boolean, onReview: (AdminReport, String) -> Unit) {
+    Surface(Modifier.fillMaxWidth(), color = Card.copy(alpha = .92f), shape = RoundedCornerShape(17.dp), border = BorderStroke(1.dp, Danger.copy(alpha = .2f))) {
+        Column(Modifier.padding(13.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Outlined.ReportProblem, null, tint = Danger, modifier = Modifier.size(17.dp))
+                Text("${report.reason} · ${timeAgo(report.reportedAt)}", color = White, fontSize = 10.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f).padding(start = 7.dp))
+                Text(reportStatusLabel(report.status), color = if (report.status == "pending") Gold else Secondary, fontSize = 9.sp)
+            }
+            Text("الناشر: ${report.postAuthorName ?: "حساب غير متاح"}", color = Secondary, fontSize = 9.sp)
+            Surface(Modifier.fillMaxWidth(), color = Black.copy(alpha = .35f), shape = RoundedCornerShape(11.dp)) {
+                Text(report.postContent ?: "تعذر العثور على المنشور المرتبط بهذا البلاغ.", color = White, fontSize = 11.sp, lineHeight = 17.sp, modifier = Modifier.padding(10.dp))
+            }
+            if (report.status == "pending") {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedButton(onClick = { onReview(report, "dismissed") }, enabled = !busy, modifier = Modifier.weight(1f), shape = RoundedCornerShape(11.dp), colors = ButtonDefaults.outlinedButtonColors(contentColor = Secondary)) {
+                        Text("رفض البلاغ", fontSize = 10.sp)
+                    }
+                    Button(onClick = { onReview(report, "resolved") }, enabled = !busy, modifier = Modifier.weight(1f), shape = RoundedCornerShape(11.dp), colors = ButtonDefaults.buttonColors(containerColor = Neon, contentColor = Black)) {
+                        Text("تسجيل المراجعة", fontSize = 10.sp)
+                    }
+                }
+            } else if (!report.moderatorNote.isNullOrBlank()) Text("ملاحظة الإدارة: ${report.moderatorNote}", color = Secondary, fontSize = 9.sp)
+        }
+    }
+}
+
+@Composable
 private fun MangaWatchlistPage(
     entries: List<MangaWatchEntry>, loading: Boolean, busy: Boolean, onBack: () -> Unit,
     onExplore: () -> Unit, onOpen: (MangaWatchEntry) -> Unit, onDelete: (MangaWatchEntry) -> Unit
@@ -1085,7 +1298,7 @@ private fun MangaWatchlistPage(
     Column(Modifier.fillMaxSize()) {
         PageTopBar("قائمة المانغا", onBack, null, null)
         if (loading && entries.isEmpty()) LoadingPanel("جارٍ تحميل قائمتك")
-        if (!loading && entries.isEmpty()) EmptyState("قائمتك فارغة", "أضف مانغا من الكتالوج لتسجيل حالة القراءة والتقدم.", Icons.Outlined.MenuBook, onExplore, "استكشاف المانغا")
+        if (!loading && entries.isEmpty()) EmptyState("قائمتك فارغة", "أضف مانغا من الكتالوج لتسجيل حالة القراءة والتقدم.", Icons.Outlined.LibraryBooks, onExplore, "استكشاف المانغا")
         else LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(14.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
             items(entries, key = { it.manga.id }) { entry ->
                 Surface(Modifier.fillMaxWidth().clickable(enabled = !busy) { onOpen(entry) }, color = Card, shape = RoundedCornerShape(16.dp), border = BorderStroke(1.dp, Color(0x2236475B))) {
@@ -1122,7 +1335,7 @@ private fun CatalogPage(
         PageTopBar("كتالوج الأنمي والمانغا", onBack, null, null)
         Row(Modifier.fillMaxWidth().padding(horizontal = 15.dp, vertical = 5.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             FilterChip(selected = kind == "anime", onClick = { onKind("anime") }, label = { Text("الأنمي") }, leadingIcon = { Icon(Icons.Outlined.Movie, null) }, colors = chipColors())
-            FilterChip(selected = kind == "manga", onClick = { onKind("manga") }, label = { Text("المانغا") }, leadingIcon = { Icon(Icons.Outlined.AutoStories, null) }, colors = chipColors())
+            FilterChip(selected = kind == "manga", onClick = { onKind("manga") }, label = { Text("المانغا") }, leadingIcon = { Icon(Icons.Outlined.LibraryBooks, null) }, colors = chipColors())
         }
         OutlinedSearch(query, onSearch, if (kind == "anime") "ابحث عن أنمي" else "ابحث عن مانغا", Modifier.padding(horizontal = 15.dp, vertical = 4.dp))
         if (loading && items.isEmpty()) LoadingPanel("جارٍ تحميل العناوين من الكتالوج")
@@ -1226,7 +1439,7 @@ private fun CatalogDetailPage(
 private fun CatalogPoster(item: CatalogEntry, modifier: Modifier = Modifier) {
     if (!item.posterUrl.isNullOrBlank()) AsyncImage(item.posterUrl, item.displayTitle, modifier.clip(RoundedCornerShape(11.dp)), contentScale = androidx.compose.ui.layout.ContentScale.Crop)
     else Surface(modifier, color = Violet.copy(alpha = .15f), shape = RoundedCornerShape(11.dp)) {
-        Box(contentAlignment = Alignment.Center) { Icon(if (item.kind == "anime") Icons.Outlined.Movie else Icons.Outlined.AutoStories, null, tint = Neon, modifier = Modifier.size(26.dp)) }
+        Box(contentAlignment = Alignment.Center) { Icon(if (item.kind == "anime") Icons.Outlined.Movie else Icons.Outlined.LibraryBooks, null, tint = Neon, modifier = Modifier.size(26.dp)) }
     }
 }
 
@@ -1695,7 +1908,7 @@ private fun PostOptionsDialog(post: SocialPost, isMine: Boolean, onDismiss: () -
 
 @Composable
 private fun PageTopBar(title: String, onBack: (() -> Unit)?, actionIcon: ImageVector?, onAction: (() -> Unit)?, trailing: (@Composable RowScope.() -> Unit)? = null) {
-    Row(Modifier.fillMaxWidth().background(Canvas).padding(horizontal = 11.dp, vertical = 7.dp), verticalAlignment = Alignment.CenterVertically) {
+    Row(Modifier.fillMaxWidth().background(Color(0xD90D1028)).border(BorderStroke(0.5.dp, White.copy(alpha = .06f))).padding(horizontal = 11.dp, vertical = 7.dp), verticalAlignment = Alignment.CenterVertically) {
         if (onBack != null) IconButton(onClick = onBack) { Icon(Icons.Outlined.ArrowBack, "رجوع", tint = White) }
         Column(Modifier.weight(1f)) { Text(title, color = White, fontSize = 15.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis) }
         if (actionIcon != null && onAction != null) IconButton(onClick = onAction) { Icon(actionIcon, "تحديث", tint = Neon) }
