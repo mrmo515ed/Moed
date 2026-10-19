@@ -51,7 +51,10 @@ import com.animeblack.app.auth.AuthException
 import com.animeblack.app.auth.AuthUser
 import com.animeblack.app.auth.ChatMessage
 import com.animeblack.app.auth.ChatSummary
+import com.animeblack.app.auth.CatalogEntry
 import com.animeblack.app.auth.CommunityItem
+import com.animeblack.app.auth.MangaTrackerEntry
+import com.animeblack.app.auth.MangaWatchEntry
 import com.animeblack.app.auth.FrameItem
 import com.animeblack.app.auth.ReelItem
 import com.animeblack.app.auth.SocialComment
@@ -85,7 +88,7 @@ private enum class SocialPage {
     HOME, COMMUNITY, CHAT, REELS, MORE, CREATE_POST, SEARCH, NOTIFICATIONS,
     COMMUNITY_CREATE, COMMUNITY_DETAIL, CHAT_NEW, CHAT_ROOM, POST_COMMENTS,
     REEL_COMMENTS, REEL_CREATE, STORE, WATCHLIST, ACHIEVEMENTS, PRIVACY,
-    STORY_VIEWER, PUBLIC_PROFILE
+    STORY_VIEWER, PUBLIC_PROFILE, CATALOG, CATALOG_DETAIL, MANGA_WATCHLIST
 }
 
 @Composable
@@ -106,6 +109,15 @@ fun AnimeBlackSocialApp(
     var communityQuery by rememberSaveable { mutableStateOf("") }
     var searchQuery by rememberSaveable { mutableStateOf("") }
     var watchSearch by rememberSaveable { mutableStateOf("") }
+    var catalogKind by rememberSaveable { mutableStateOf("anime") }
+    var catalogSearch by rememberSaveable { mutableStateOf("") }
+    var selectedCatalogId by rememberSaveable { mutableStateOf<String?>(null) }
+    var catalogReturnPage by rememberSaveable { mutableStateOf(SocialPage.CATALOG) }
+    var catalogItems by remember { mutableStateOf<List<CatalogEntry>>(emptyList()) }
+    var catalogDetail by remember { mutableStateOf<CatalogEntry?>(null) }
+    var favoriteAnimeIds by remember { mutableStateOf<Set<String>>(emptySet()) }
+    var mangaTracker by remember { mutableStateOf<MangaTrackerEntry?>(null) }
+    var mangaWatchlist by remember { mutableStateOf<List<MangaWatchEntry>>(emptyList()) }
     var newChatQuery by rememberSaveable { mutableStateOf("") }
     var selectedCommunityId by rememberSaveable { mutableStateOf<String?>(null) }
     var postingCommunityId by rememberSaveable { mutableStateOf<String?>(null) }
@@ -172,13 +184,20 @@ fun AnimeBlackSocialApp(
         }
     }
 
-    BackHandler(enabled = page != homePageForTab(tab)) { page = homePageForTab(tab) }
+    fun navigateBack() {
+        page = when (page) {
+            SocialPage.CATALOG_DETAIL -> catalogReturnPage
+            else -> homePageForTab(tab)
+        }
+    }
+    BackHandler(enabled = page != homePageForTab(tab)) { navigateBack() }
 
-    LaunchedEffect(page, tab, feedFilter, communityFilter, communityQuery, searchQuery, newChatQuery, watchSearch, selectedCommunityId, selectedChatId, refresh) {
+    LaunchedEffect(page, tab, feedFilter, communityFilter, communityQuery, searchQuery, newChatQuery, watchSearch, catalogSearch, catalogKind, selectedCatalogId, selectedCommunityId, selectedChatId, refresh) {
         if ((page == SocialPage.SEARCH && searchQuery.isNotBlank()) ||
             (page == SocialPage.CHAT_NEW && newChatQuery.isNotBlank()) ||
             (page == SocialPage.COMMUNITY && communityQuery.isNotBlank()) ||
-            (page == SocialPage.WATCHLIST && watchSearch.isNotBlank())) delay(350)
+            (page == SocialPage.WATCHLIST && watchSearch.isNotBlank()) ||
+            (page == SocialPage.CATALOG && catalogSearch.isNotBlank())) delay(350)
         loading = true
         notice = null
         try {
@@ -217,6 +236,16 @@ fun AnimeBlackSocialApp(
                     watchlist = repository.loadWatchlist(user.id)
                     animeChoices = repository.loadAnime(watchSearch).take(30)
                 }
+                SocialPage.CATALOG -> catalogItems = repository.loadCatalog(catalogKind, catalogSearch)
+                SocialPage.MANGA_WATCHLIST -> mangaWatchlist = repository.loadMangaWatchlist(user.id)
+                SocialPage.CATALOG_DETAIL -> {
+                    val id = selectedCatalogId
+                    if (id != null) {
+                        catalogDetail = repository.loadCatalogDetail(catalogKind, id)
+                        if (catalogKind == "anime") favoriteAnimeIds = repository.loadFavoriteAnimeIds(user.id)
+                        else mangaTracker = repository.loadMangaTrackerEntry(user.id, id)
+                    }
+                }
                 SocialPage.ACHIEVEMENTS -> {
                     stats = repository.loadProfileStats(user.id)
                     achievements = repository.loadAchievements(user.id)
@@ -244,7 +273,7 @@ fun AnimeBlackSocialApp(
         }
     }
 
-    val onBack = { page = homePageForTab(tab) }
+    val onBack = { navigateBack() }
     val background = if (pureBlack) Black else Canvas
     val bottomVisible = page in setOf(SocialPage.HOME, SocialPage.COMMUNITY, SocialPage.CHAT, SocialPage.REELS, SocialPage.MORE)
 
@@ -331,6 +360,8 @@ fun AnimeBlackSocialApp(
                     SocialPage.MORE -> MorePage(user, stats, pageBusy,
                         onEditProfile = onEditProfile,
                         onStore = { page = SocialPage.STORE },
+                        onCatalog = { catalogKind = "anime"; catalogSearch = ""; page = SocialPage.CATALOG },
+                        onMangaList = { page = SocialPage.MANGA_WATCHLIST },
                         onWatchlist = { watchSearch = ""; page = SocialPage.WATCHLIST },
                         onAchievements = { page = SocialPage.ACHIEVEMENTS },
                         onTheme = {
@@ -406,6 +437,19 @@ fun AnimeBlackSocialApp(
                         onProgress = { entry, delta -> runAction({ repository.saveTrackerEntry(user.id, entry.anime.id, entry.status, (entry.progress + delta).coerceAtLeast(0), entry.score) }) },
                         onDelete = { entry -> runAction({ repository.deleteTrackerEntry(user.id, entry.anime.id) }) }
                     )
+                    SocialPage.MANGA_WATCHLIST -> MangaWatchlistPage(mangaWatchlist, loading, pageBusy, onBack,
+                        onExplore = { catalogKind = "manga"; catalogSearch = ""; page = SocialPage.CATALOG },
+                        onOpen = { entry -> catalogReturnPage = SocialPage.MANGA_WATCHLIST; catalogKind = "manga"; catalogDetail = entry.manga; selectedCatalogId = entry.manga.id; mangaTracker = MangaTrackerEntry(entry.manga.id, entry.status, entry.progressChapters, entry.progressVolumes, entry.score); page = SocialPage.CATALOG_DETAIL },
+                        onDelete = { entry -> runAction({ repository.deleteMangaTrackerEntry(user.id, entry.manga.id) }) })
+                    SocialPage.CATALOG -> CatalogPage(catalogKind, catalogItems, catalogSearch, loading, pageBusy, onBack,
+                        onKind = { catalogKind = it; catalogSearch = "" }, onSearch = { catalogSearch = it },
+                        onOpen = { catalogReturnPage = SocialPage.CATALOG; catalogDetail = it; selectedCatalogId = it.id; mangaTracker = null; page = SocialPage.CATALOG_DETAIL })
+                    SocialPage.CATALOG_DETAIL -> CatalogDetailPage(catalogDetail, catalogKind == "anime" && (catalogDetail?.id?.let { it in favoriteAnimeIds } == true),
+                        mangaTracker, loading, pageBusy, onBack,
+                        onToggleFavorite = { item -> runAction({ repository.toggleFavoriteAnime(user.id, item.id, item.id in favoriteAnimeIds) }) },
+                        onTrackAnime = { item -> runAction({ repository.saveTrackerEntry(user.id, item.id, "planning", 0, null) }, after = { notice = "تمت إضافة ${item.displayTitle} إلى قائمة الأنمي." }) },
+                        onTrackManga = { item, status, chapters -> runAction({ repository.saveMangaTrackerEntry(user.id, item.id, status, chapters, mangaTracker?.progressVolumes ?: 0, mangaTracker?.score) }, after = { notice = "تم حفظ تقدم المانغا في حسابك." }) },
+                        onRemoveManga = { item -> runAction({ repository.deleteMangaTrackerEntry(user.id, item.id) }, after = { notice = "حُذفت المانغا من قائمتك." }) })
                     SocialPage.ACHIEVEMENTS -> AchievementsPage(achievements, stats, loading, onBack)
                     SocialPage.PRIVACY -> PrivacyPage(hideSpoilers, autoPlayReels, pureBlack, onBack,
                         onHideSpoilers = { hideSpoilers = it; prefs.edit().putBoolean("hide_spoilers", it).apply() },
@@ -988,7 +1032,7 @@ private fun ReelsPage(
 @Composable
 private fun MorePage(
     user: AuthUser, stats: UserStats?, busy: Boolean, onEditProfile: () -> Unit, onStore: () -> Unit,
-    onWatchlist: () -> Unit, onAchievements: () -> Unit, onTheme: () -> Unit, pureBlack: Boolean,
+    onWatchlist: () -> Unit, onCatalog: () -> Unit, onMangaList: () -> Unit, onAchievements: () -> Unit, onTheme: () -> Unit, pureBlack: Boolean,
     onPrivacy: () -> Unit, onSignOut: () -> Unit
 ) {
     LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -1015,7 +1059,9 @@ private fun MorePage(
             }
         }
         item { ActionSetting(Icons.Outlined.Storefront, "إطارات الملف الشخصي", "افتح الإطارات المتاحة بحسب مستواك", onStore) }
-        item { ActionSetting(Icons.Outlined.LibraryBooks, "قائمة المتابعة", "أعمالك وحالة المشاهدة والتقدم", onWatchlist) }
+        item { ActionSetting(Icons.Outlined.LibraryBooks, "قائمة متابعة الأنمي", "حالة المشاهدة والتقدم المسجل", onWatchlist) }
+        item { ActionSetting(Icons.Outlined.MenuBook, "قائمة المانغا", "حالة القراءة والفصول التي سجلتها", onMangaList) }
+        item { ActionSetting(Icons.Outlined.AutoStories, "كتالوج الأنمي والمانغا", "استكشف العناوين المسجلة في قاعدة البيانات", onCatalog) }
         item { ActionSetting(Icons.Outlined.EmojiEvents, "الإنجازات", "إنجازاتك وتقدمك في المجتمع", onAchievements) }
         item { ActionSetting(Icons.Outlined.Settings, "الخصوصية والتفضيلات", "الحرق، تشغيل المقاطع، والمظهر", onPrivacy) }
         item {
@@ -1028,6 +1074,159 @@ private fun MorePage(
             }
         }
         item { OutlinedButton(onClick = onSignOut, enabled = !busy, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp), colors = ButtonDefaults.outlinedButtonColors(contentColor = Danger)) { Icon(Icons.Outlined.Logout, null); Spacer(Modifier.width(7.dp)); Text("تسجيل الخروج") } }
+    }
+}
+
+@Composable
+private fun MangaWatchlistPage(
+    entries: List<MangaWatchEntry>, loading: Boolean, busy: Boolean, onBack: () -> Unit,
+    onExplore: () -> Unit, onOpen: (MangaWatchEntry) -> Unit, onDelete: (MangaWatchEntry) -> Unit
+) {
+    Column(Modifier.fillMaxSize()) {
+        PageTopBar("قائمة المانغا", onBack, null, null)
+        if (loading && entries.isEmpty()) LoadingPanel("جارٍ تحميل قائمتك")
+        if (!loading && entries.isEmpty()) EmptyState("قائمتك فارغة", "أضف مانغا من الكتالوج لتسجيل حالة القراءة والتقدم.", Icons.Outlined.MenuBook, onExplore, "استكشاف المانغا")
+        else LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(14.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
+            items(entries, key = { it.manga.id }) { entry ->
+                Surface(Modifier.fillMaxWidth().clickable(enabled = !busy) { onOpen(entry) }, color = Card, shape = RoundedCornerShape(16.dp), border = BorderStroke(1.dp, Color(0x2236475B))) {
+                    Row(Modifier.padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                        CatalogPoster(entry.manga, Modifier.size(width = 56.dp, height = 76.dp))
+                        Column(Modifier.weight(1f).padding(horizontal = 10.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Text(entry.manga.displayTitle, color = White, fontSize = 12.sp, fontWeight = FontWeight.Bold, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                            Text("${mangaStatusLabel(entry.status)} · ${entry.progressChapters} فصلًا", color = Secondary, fontSize = 10.sp)
+                            if (entry.score != null) Text("تقييمك ${entry.score} / 10", color = Neon, fontSize = 9.sp)
+                        }
+                        IconButton(onClick = { onDelete(entry) }, enabled = !busy) { Icon(Icons.Outlined.DeleteOutline, "إزالة من القائمة", tint = Danger) }
+                    }
+                }
+            }
+        }
+    }
+}
+
+private fun mangaStatusLabel(status: String): String = when (status) {
+    "reading" -> "أقرأ الآن"
+    "planning" -> "مخطط للقراءة"
+    "completed" -> "مكتمل"
+    "paused" -> "متوقف مؤقتًا"
+    "dropped" -> "متروك"
+    else -> status
+}
+
+@Composable
+private fun CatalogPage(
+    kind: String, items: List<CatalogEntry>, query: String, loading: Boolean, busy: Boolean,
+    onBack: () -> Unit, onKind: (String) -> Unit, onSearch: (String) -> Unit, onOpen: (CatalogEntry) -> Unit
+) {
+    Column(Modifier.fillMaxSize()) {
+        PageTopBar("كتالوج الأنمي والمانغا", onBack, null, null)
+        Row(Modifier.fillMaxWidth().padding(horizontal = 15.dp, vertical = 5.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            FilterChip(selected = kind == "anime", onClick = { onKind("anime") }, label = { Text("الأنمي") }, leadingIcon = { Icon(Icons.Outlined.Movie, null) }, colors = chipColors())
+            FilterChip(selected = kind == "manga", onClick = { onKind("manga") }, label = { Text("المانغا") }, leadingIcon = { Icon(Icons.Outlined.AutoStories, null) }, colors = chipColors())
+        }
+        OutlinedSearch(query, onSearch, if (kind == "anime") "ابحث عن أنمي" else "ابحث عن مانغا", Modifier.padding(horizontal = 15.dp, vertical = 4.dp))
+        if (loading && items.isEmpty()) LoadingPanel("جارٍ تحميل العناوين من الكتالوج")
+        if (!loading && items.isEmpty()) {
+            if (query.isBlank()) EmptyInline("لا توجد عناوين متاحة في هذا الجزء من الكتالوج حاليًا.", Icons.Outlined.Search)
+            else EmptyState("لا توجد عناوين مطابقة", "جرّب كلمة بحث أخرى. النتائج المعروضة تأتي من قاعدة البيانات فقط.", Icons.Outlined.Search, { onSearch("") }, "مسح البحث")
+        } else {
+            LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(14.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
+                items(items, key = { it.id }) { entry ->
+                    Surface(Modifier.fillMaxWidth().clickable(enabled = !busy) { onOpen(entry) }, color = Card, shape = RoundedCornerShape(16.dp), border = BorderStroke(1.dp, Color(0x2236475B))) {
+                        Row(Modifier.padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                            CatalogPoster(entry, Modifier.size(width = 60.dp, height = 82.dp))
+                            Column(Modifier.weight(1f).padding(horizontal = 11.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                Text(entry.displayTitle.ifBlank { "عنوان غير مسمى" }, color = White, fontSize = 13.sp, fontWeight = FontWeight.Bold, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                                Text("${entry.format.ifBlank { entry.kind }} · ${entry.status.ifBlank { "الحالة غير محددة" }}", color = Secondary, fontSize = 10.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                Text("${if (entry.score > 0) "${"%.1f".format(entry.score)} / 10" else "غير مصنّف"} · ${if (entry.count > 0) "${entry.count} ${if (kind == "anime") "حلقة" else "فصلًا"}" else "العدد غير محدد"}", color = Neon, fontSize = 10.sp)
+                            }
+                            Icon(Icons.Outlined.ChevronLeft, null, tint = Tertiary)
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun CatalogDetailPage(
+    entry: CatalogEntry?, isFavorite: Boolean, mangaTracker: MangaTrackerEntry?, loading: Boolean, busy: Boolean,
+    onBack: () -> Unit, onToggleFavorite: (CatalogEntry) -> Unit,
+    onTrackAnime: (CatalogEntry) -> Unit, onTrackManga: (CatalogEntry, String, Int) -> Unit,
+    onRemoveManga: (CatalogEntry) -> Unit
+) {
+    var mangaStatus by rememberSaveable(entry?.id) { mutableStateOf(mangaTracker?.status ?: "planning") }
+    var chapterProgress by rememberSaveable(entry?.id) { mutableStateOf(mangaTracker?.progressChapters?.toString() ?: "0") }
+    LaunchedEffect(entry?.id, mangaTracker?.status, mangaTracker?.progressChapters) {
+        mangaStatus = mangaTracker?.status ?: "planning"
+        chapterProgress = mangaTracker?.progressChapters?.toString() ?: "0"
+    }
+    Column(Modifier.fillMaxSize()) {
+        PageTopBar(entry?.displayTitle ?: "تفاصيل العنوان", onBack, null, null)
+        if (loading && entry == null) LoadingPanel("جارٍ تحميل التفاصيل")
+        if (entry == null && !loading) {
+            EmptyState("العنوان غير متاح", "قد يكون محذوفًا أو غير متاح ضمن إعدادات المحتوى الحالية.", Icons.Outlined.Info, onBack, "رجوع")
+        } else if (entry != null) {
+            LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 22.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                item {
+                    Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                        CatalogPoster(entry, Modifier.size(width = 116.dp, height = 158.dp))
+                        Column(Modifier.weight(1f).padding(start = 14.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
+                            Text(entry.displayTitle.ifBlank { entry.titleEnglish }, color = White, fontSize = 17.sp, fontWeight = FontWeight.Bold, lineHeight = 23.sp)
+                            Text(entry.titleEnglish, color = Secondary, fontSize = 11.sp)
+                            Text("${entry.format.ifBlank { "صيغة غير محددة" }} · ${entry.status.ifBlank { "الحالة غير محددة" }}", color = Neon, fontSize = 10.sp)
+                            Text("${if (entry.score > 0) "${"%.1f".format(entry.score)} / 10" else "لا يوجد تقييم مسجل"} · ${entry.year?.toString() ?: "سنة غير محددة"}", color = Secondary, fontSize = 10.sp)
+                        }
+                    }
+                }
+                item {
+                    val countLabel = if (entry.kind == "anime") "عدد الحلقات" else "عدد الفصول"
+                    InfoCard("معلومات الكتالوج", "$countLabel: ${entry.count.takeIf { it > 0 } ?: "غير محدد"}${entry.season?.let { " · الموسم $it" } ?: ""}${entry.ageRating?.let { " · التصنيف العمري $it" } ?: ""}", Icons.Outlined.Info)
+                }
+                if (entry.synopsis.isNotBlank()) item { InfoCard("القصة", entry.synopsis, Icons.Outlined.Subject) }
+                if (entry.kind == "anime") {
+                    item {
+                        Row(Modifier.fillMaxWidth().padding(horizontal = 15.dp), horizontalArrangement = Arrangement.spacedBy(9.dp)) {
+                            OutlinedButton(onClick = { onToggleFavorite(entry) }, enabled = !busy, modifier = Modifier.weight(1f), shape = RoundedCornerShape(13.dp), colors = ButtonDefaults.outlinedButtonColors(contentColor = if (isFavorite) Danger else Neon)) {
+                                Icon(if (isFavorite) Icons.Outlined.Favorite else Icons.Outlined.FavoriteBorder, null); Spacer(Modifier.width(6.dp)); Text(if (isFavorite) "إزالة من المفضلة" else "أضف للمفضلة", fontSize = 10.sp)
+                            }
+                            Button(onClick = { onTrackAnime(entry) }, enabled = !busy, modifier = Modifier.weight(1f), shape = RoundedCornerShape(13.dp), colors = ButtonDefaults.buttonColors(containerColor = Neon, contentColor = Black)) {
+                                Icon(Icons.Outlined.Add, null); Spacer(Modifier.width(5.dp)); Text("قائمة المتابعة", fontSize = 10.sp)
+                            }
+                        }
+                    }
+                    item { InfoCard("المشاهدة", "بيانات الكتالوج لا تتضمن روابط بث مرخّصة؛ لذلك لا يوجد تشغيل حلقات داخل التطبيق.", Icons.Outlined.Lock) }
+                } else {
+                    item {
+                        Surface(Modifier.fillMaxWidth().padding(horizontal = 14.dp), color = Panel, shape = RoundedCornerShape(15.dp), border = BorderStroke(1.dp, Color(0x2236475B))) {
+                            Column(Modifier.padding(13.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Text(if (mangaTracker == null) "أضف إلى قائمة المانغا" else "تقدم القراءة المحفوظ", color = White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+                                    listOf("planning" to "مخطط", "reading" to "أقرأ", "completed" to "مكتمل", "paused" to "متوقف", "dropped" to "متروك").forEach { (key, label) ->
+                                        FilterChip(selected = mangaStatus == key, onClick = { mangaStatus = key }, enabled = !busy, label = { Text(label, fontSize = 9.sp) }, colors = chipColors())
+                                    }
+                                }
+                                OutlinedTextField(chapterProgress, { raw -> chapterProgress = raw.filter(Char::isDigit).take(5) }, modifier = Modifier.fillMaxWidth(), singleLine = true, label = { Text("الفصول التي قرأتها") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), colors = fieldColors(), shape = RoundedCornerShape(12.dp))
+                                Button(onClick = { onTrackManga(entry, mangaStatus, chapterProgress.toIntOrNull() ?: 0) }, enabled = !busy, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp), colors = ButtonDefaults.buttonColors(containerColor = Neon, contentColor = Black)) {
+                                    Icon(Icons.Outlined.Save, null); Spacer(Modifier.width(7.dp)); Text("حفظ التقدم")
+                                }
+                                if (mangaTracker != null) TextButton(onClick = { onRemoveManga(entry) }, enabled = !busy, modifier = Modifier.align(Alignment.End)) { Text("إزالة من قائمتي", color = Danger) }
+                            }
+                        }
+                    }
+                    item { InfoCard("القارئ", "المتاح هنا بيانات فهرسة فقط. لا توجد فصول أو ملفات قراءة مرخّصة مرتبطة بهذا العنوان.", Icons.Outlined.Lock) }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun CatalogPoster(item: CatalogEntry, modifier: Modifier = Modifier) {
+    if (!item.posterUrl.isNullOrBlank()) AsyncImage(item.posterUrl, item.displayTitle, modifier.clip(RoundedCornerShape(11.dp)), contentScale = androidx.compose.ui.layout.ContentScale.Crop)
+    else Surface(modifier, color = Violet.copy(alpha = .15f), shape = RoundedCornerShape(11.dp)) {
+        Box(contentAlignment = Alignment.Center) { Icon(if (item.kind == "anime") Icons.Outlined.Movie else Icons.Outlined.AutoStories, null, tint = Neon, modifier = Modifier.size(26.dp)) }
     }
 }
 

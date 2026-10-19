@@ -26,6 +26,27 @@ private data class PublicProfile(
     val avatarUrl: String?
 )
 
+data class CatalogEntry(
+    val id: String,
+    val kind: String,
+    val titleArabic: String,
+    val titleEnglish: String,
+    val posterUrl: String?,
+    val bannerUrl: String?,
+    val synopsis: String,
+    val format: String,
+    val status: String,
+    val count: Int,
+    val score: Double,
+    val popularity: Int,
+    val season: String?,
+    val year: Int?,
+    val ageRating: String?,
+    val isNsfw: Boolean
+) {
+    val displayTitle: String get() = titleArabic.ifBlank { titleEnglish }
+}
+
 data class AnimeItem(
     val id: String,
     val titleArabic: String,
@@ -177,6 +198,16 @@ data class UserNotification(
     val isRead: Boolean
 )
 
+data class MangaTrackerEntry(
+    val mangaId: String,
+    val status: String,
+    val progressChapters: Int,
+    val progressVolumes: Int,
+    val score: Int?
+)
+
+data class MangaWatchEntry(val manga: CatalogEntry, val status: String, val progressChapters: Int, val progressVolumes: Int, val score: Int?)
+
 data class WatchEntry(
     val anime: AnimeItem,
     val status: String,
@@ -202,6 +233,105 @@ class SocialRepository(private val auth: SupabaseAuthRepository, context: Contex
         val filter = if (term.isNotBlank()) "&or=(title_ar.ilike.*${queryEncode(term)}*,title_en.ilike.*${queryEncode(term)}*)" else ""
         val rows = jsonArray(auth.socialRest("anime?select=id,title_ar,title_en,poster_url,episodes_count,format,status,score&order=popularity.desc.nullslast&limit=100$filter"))
         return (0 until rows.length()).mapNotNull { i -> rows.optJSONObject(i)?.let(::animeFrom) }
+    }
+
+    suspend fun loadCatalog(kind: String, search: String = "", status: String = "all"): List<CatalogEntry> {
+        require(kind == "anime" || kind == "manga") { "Unknown catalog type" }
+        val table = kind
+        val selectedColumns = if (kind == "anime") {
+            "id,title_ar,title_en,poster_url,banner_url,synopsis_ar,format,status,episodes_count,score,popularity,season,season_year,age_rating,is_nsfw"
+        } else {
+            "id,title_ar,title_en,poster_url,banner_url,synopsis_ar,format,status,chapters_count,score,popularity,is_nsfw"
+        }
+        val term = search.trim()
+        val filters = buildList {
+            add("is_nsfw=eq.false")
+            if (term.isNotBlank()) add("or=(title_ar.ilike.*${queryEncode(term)}*,title_en.ilike.*${queryEncode(term)}*,title_romaji.ilike.*${queryEncode(term)}*)")
+            if (status != "all") add("status=eq.${queryEncode(status)}")
+        }.joinToString("&")
+        val rows = jsonArray(auth.socialRest("$table?select=$selectedColumns&$filters&order=popularity.desc&limit=80"))
+        return (0 until rows.length()).mapNotNull { rows.optJSONObject(it) }.map { row -> catalogFrom(row, kind) }
+    }
+
+    suspend fun loadCatalogDetail(kind: String, itemId: String): CatalogEntry? {
+        require(kind == "anime" || kind == "manga") { "Unknown catalog type" }
+        val row = jsonArray(auth.socialRest("$kind?id=eq.$itemId&is_nsfw=eq.false&select=*&limit=1")).optJSONObject(0) ?: return null
+        return catalogFrom(row, kind)
+    }
+
+    suspend fun loadMangaWatchlist(userId: String): List<MangaWatchEntry> {
+        val raw = jsonArray(auth.socialRest("manga_tracker_entries?user_id=eq.$userId&select=manga_id,status,progress_chapters,progress_volumes,score&order=updated_at.desc&limit=500"))
+        val entries = (0 until raw.length()).mapNotNull { raw.optJSONObject(it) }
+        if (entries.isEmpty()) return emptyList()
+        val ids = entries.map { it.optString("manga_id") }.filter(String::isNotBlank).distinct()
+        if (ids.isEmpty()) return emptyList()
+        val mangaRows = jsonArray(auth.socialRest("manga?id=${inClause(ids)}&is_nsfw=eq.false&select=*&limit=500"))
+        val mangaById = (0 until mangaRows.length()).mapNotNull { mangaRows.optJSONObject(it) }
+            .associate { row -> row.optString("id") to catalogFrom(row, "manga") }
+        return entries.mapNotNull { row ->
+            val manga = mangaById[row.optString("manga_id")] ?: return@mapNotNull null
+            MangaWatchEntry(manga, row.optString("status"), row.optInt("progress_chapters"), row.optInt("progress_volumes"),
+                if (row.isNull("score")) null else row.optInt("score"))
+        }
+    }
+
+    suspend fun loadMangaTrackerEntry(userId: String, mangaId: String): MangaTrackerEntry? {
+        val rows = jsonArray(auth.socialRest("manga_tracker_entries?user_id=eq.$userId&manga_id=eq.$mangaId&select=manga_id,status,progress_chapters,progress_volumes,score&limit=1"))
+        val row = rows.optJSONObject(0) ?: return null
+        return MangaTrackerEntry(row.optString("manga_id"), row.optString("status"), row.optInt("progress_chapters"),
+            row.optInt("progress_volumes"), if (row.isNull("score")) null else row.optInt("score"))
+    }
+
+    suspend fun saveMangaTrackerEntry(userId: String, mangaId: String, status: String, progressChapters: Int, progressVolumes: Int, score: Int?) {
+        require(status in setOf("reading", "planning", "completed", "paused", "dropped")) { "حالة قراءة غير صالحة." }
+        require(progressChapters >= 0 && progressVolumes >= 0) { "التقدم لا يمكن أن يكون سالبًا." }
+        require(score == null || score in 1..10) { "التقييم يجب أن يكون بين 1 و10." }
+        val payload = jsonObject {
+            put("user_id", userId); put("manga_id", mangaId); put("status", status)
+            put("progress_chapters", progressChapters); put("progress_volumes", progressVolumes)
+            put("score", score ?: JSONObject.NULL)
+        }
+        auth.socialRest("manga_tracker_entries?on_conflict=user_id,manga_id", "POST", payload.toString(), prefer = "resolution=merge-duplicates,return=minimal")
+    }
+
+    suspend fun deleteMangaTrackerEntry(userId: String, mangaId: String) {
+        auth.socialRest("manga_tracker_entries?user_id=eq.$userId&manga_id=eq.$mangaId", "DELETE")
+    }
+
+    private fun catalogFrom(row: JSONObject, kind: String): CatalogEntry {
+        val countColumn = if (kind == "anime") "episodes_count" else "chapters_count"
+        return CatalogEntry(
+            id = row.optString("id"), kind = kind,
+            titleArabic = row.optString("title_ar"), titleEnglish = row.optString("title_en"),
+            posterUrl = row.optString("poster_url").takeIf(String::isNotBlank),
+            bannerUrl = row.optString("banner_url").takeIf(String::isNotBlank),
+            synopsis = row.optString("synopsis_ar").ifBlank { row.optString("synopsis_en") },
+            format = row.optString("format"), status = row.optString("status"),
+            count = row.optInt(countColumn), score = row.optDouble("score"), popularity = row.optInt("popularity"),
+            season = row.optString("season").takeIf(String::isNotBlank),
+            year = row.optInt("season_year").takeIf { !row.isNull("season_year") && it > 0 },
+            ageRating = row.optString("age_rating").takeIf(String::isNotBlank),
+            isNsfw = row.optBoolean("is_nsfw")
+        )
+    }
+
+    suspend fun loadFavoriteAnimeIds(userId: String): Set<String> {
+        val rows = jsonArray(auth.socialRest("profile_favorite_anime?user_id=eq.$userId&select=anime_id&order=rank.asc&limit=20"))
+        return (0 until rows.length()).mapNotNull { rows.optJSONObject(it)?.optString("anime_id")?.takeIf(String::isNotBlank) }.toSet()
+    }
+
+    suspend fun toggleFavoriteAnime(userId: String, animeId: String, isFavorite: Boolean) {
+        if (isFavorite) {
+            auth.socialRest("profile_favorite_anime?user_id=eq.$userId&anime_id=eq.$animeId", "DELETE")
+            return
+        }
+        val current = jsonArray(auth.socialRest("profile_favorite_anime?user_id=eq.$userId&select=rank&order=rank.asc&limit=10"))
+        val usedRanks = (0 until current.length()).mapNotNull { current.optJSONObject(it)?.optInt("rank") }.toSet()
+        val nextRank = (1..10).firstOrNull { it !in usedRanks }
+            ?: throw AuthException("يمكنك اختيار 10 أعمال مفضلة كحد أقصى.")
+        auth.socialRest("profile_favorite_anime", "POST", jsonObject {
+            put("user_id", userId); put("anime_id", animeId); put("rank", nextRank)
+        }.toString())
     }
 
     suspend fun loadFeed(userId: String, filter: String = "all", communityId: String? = null): List<SocialPost> {
