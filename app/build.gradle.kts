@@ -36,8 +36,8 @@ android {
         applicationId = "com.animeblack.app"
         minSdk = 24
         targetSdk = 35
-        versionCode = 4
-        versionName = "0.3.1"
+        versionCode = 5
+        versionName = "0.3.2"
 
         buildConfigField("String", "SUPABASE_URL", asBuildConfigString(supabaseUrl))
         buildConfigField("String", "SUPABASE_PUBLISHABLE_KEY", asBuildConfigString(supabasePublishableKey))

@@ -20,9 +20,9 @@ SUPABASE_URL=https://kpowibropzeapdfpkhqo.supabase.co
 SUPABASE_PUBLISHABLE_KEY=your_supabase_publishable_key
 ```
 
-## Version 0.3.1
+## Version 0.3.2
 
-This patch gives the launcher icon a solid black background on every Android version and adds a properly masked adaptive icon for newer launchers. The social home and its Supabase-backed flows are included on top of authentication and onboarding. The debug build is signed with Android's debug key and is intended for testing rather than Play Store distribution.
+This test build adds a Supabase-backed personal library (anime and manga tracking, favorites, saved posts), public member profiles with recent posts, story navigation, and notification deep links. The launcher icon keeps its solid black background and the app retains its Luxury Dark styling. The APK is debug-signed and intended for testing, not Play Store distribution.
 
 ## Build and download
 
