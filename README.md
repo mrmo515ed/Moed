@@ -20,9 +20,9 @@ SUPABASE_URL=https://kpowibropzeapdfpkhqo.supabase.co
 SUPABASE_PUBLISHABLE_KEY=your_supabase_publishable_key
 ```
 
-## Version 0.3.0
+## Version 0.3.1
 
-This milestone adds the social home and its Supabase-backed flows on top of authentication and onboarding. The debug build is signed with Android's debug key and is intended for testing rather than Play Store distribution.
+This patch gives the launcher icon a solid black background on every Android version and adds a properly masked adaptive icon for newer launchers. The social home and its Supabase-backed flows are included on top of authentication and onboarding. The debug build is signed with Android's debug key and is intended for testing rather than Play Store distribution.
 
 ## Build and download
 

@@ -4,7 +4,8 @@
 
     <application
         android:allowBackup="false"
-        android:icon="@drawable/anime_black_logo"
+        android:icon="@mipmap/ic_launcher"
+        android:roundIcon="@mipmap/ic_launcher"
         android:label="Anime Black"
         android:supportsRtl="true"
         android:theme="@android:style/Theme.Material.NoActionBar">
