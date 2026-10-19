@@ -23,6 +23,10 @@ SUPABASE_URL=https://kpowibropzeapdfpkhqo.supabase.co
 SUPABASE_PUBLISHABLE_KEY=your_supabase_publishable_key
 ```
 
+## Version 0.2.0
+
+This release packages the complete Supabase-backed authentication and onboarding flow, including verified-email callback handling, resend confirmation, password reset, encrypted local session storage, profile/avatar updates, and saved genre interests. The debug build is signed with Android's debug key and is intended for testing rather than Play Store distribution.
+
 ## Build and download
 
 Open the repository in Android Studio (JDK 17, Android SDK 35), or run:
