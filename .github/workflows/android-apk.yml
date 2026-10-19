@@ -5,12 +5,6 @@ on:
     branches:
       - arena/8b833e7d-moed
   workflow_dispatch:
-    inputs:
-      release_tag:
-        description: "Optional release tag (for example v0.1.0) to publish the APK"
-        required: false
-        type: string
-        default: ""
 
 permissions:
   contents: write
@@ -57,11 +51,11 @@ jobs:
           retention-days: 30
 
       - name: Publish APK release
-        if: github.event_name == 'workflow_dispatch' && inputs.release_tag != ''
+        if: github.event_name == 'push' && github.event.head_commit.message == 'release-apk: v0.1.0'
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ inputs.release_tag }}
+          tag_name: v0.1.0
           target_commitish: ${{ github.sha }}
-          name: Anime Black Android ${{ inputs.release_tag }}
+          name: Anime Black Android v0.1.0
           generate_release_notes: true
           files: app/build/outputs/apk/debug/app-debug.apk
