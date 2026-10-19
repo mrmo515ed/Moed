@@ -98,6 +98,7 @@ fun AnimeBlackSocialApp(
     val context = LocalContext.current
     val prefs = remember { context.getSharedPreferences("anime_black_ui", Context.MODE_PRIVATE) }
     val scope = rememberCoroutineScope()
+    val snackbarHostState = remember { SnackbarHostState() }
     var page by rememberSaveable { mutableStateOf(SocialPage.HOME) }
     var tab by rememberSaveable { mutableStateOf(MainTab.HOME) }
     var feedFilter by rememberSaveable { mutableStateOf("all") }
@@ -249,7 +250,7 @@ fun AnimeBlackSocialApp(
 
     Scaffold(
         containerColor = background,
-        snackbarHost = { hostState -> SnackbarHost(hostState) },
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         bottomBar = {
             if (bottomVisible) SocialBottomBar(tab, ::navigateTab)
         }
