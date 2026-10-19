@@ -4,7 +4,7 @@ on:
   push:
     branches:
       - arena/8b833e7d-moed
-  workflow_dispatch:
+  workflow_dispatch: {}
 
 permissions:
   contents: write
@@ -51,7 +51,7 @@ jobs:
           retention-days: 30
 
       - name: Publish APK release
-        if: ${{ github.event_name == 'push' && github.event.head_commit.message == 'release-apk: v0.1.0' }}
+        if: ${{ github.event_name == 'push' && github.event.head_commit.message == 'publish_apk_v0.1.0' }}
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v0.1.0
