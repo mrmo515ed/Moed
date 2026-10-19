@@ -5,9 +5,15 @@ on:
     branches:
       - arena/8b833e7d-moed
   workflow_dispatch:
+    inputs:
+      release_tag:
+        description: "Optional release tag (for example v0.1.0) to publish the APK"
+        required: false
+        type: string
+        default: ""
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   build:
@@ -42,10 +48,20 @@ jobs:
           SUPABASE_PUBLISHABLE_KEY: ${{ vars.SUPABASE_PUBLISHABLE_KEY }}
         run: ./gradlew --no-daemon assembleDebug
 
-      - name: Upload APK
+      - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
           name: anime-black-debug-apk
           path: app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
           retention-days: 30
+
+      - name: Publish APK release
+        if: github.event_name == 'workflow_dispatch' && inputs.release_tag != ''
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ inputs.release_tag }}
+          target_commitish: ${{ github.sha }}
+          name: Anime Black Android ${{ inputs.release_tag }}
+          generate_release_notes: true
+          files: app/build/outputs/apk/debug/app-debug.apk
