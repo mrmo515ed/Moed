@@ -1,0 +1,2521 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>Anime Black - عالم الأنمي والمانجا الاجتماعي المتكامل</title>
+  
+  <!-- خطوط عربية ولاتينية حديثة وفاخرة -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Readex+Pro:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+
+  <style>
+    /* ==========================================================================
+       Anime Black - Design System Tokens & Global Styles
+       ========================================================================== */
+    :root {
+      /* باليتة الألوان الأساسية - Premium Deep Dark */
+      --ab-bg-deep: #050608;
+      --ab-bg-canvas: #090b12;
+      --ab-bg-surface: #10131d;
+      --ab-bg-surface-elevated: #151928;
+      --ab-bg-card: #131622;
+      --ab-bg-card-hover: #1a1e2e;
+      --ab-bg-glass: rgba(16, 19, 29, 0.85);
+      --ab-bg-glass-strong: rgba(9, 11, 18, 0.95);
+
+      /* درجات النيون الكهربائي والهوية */
+      --ab-cyan: #00e5ff;
+      --ab-cyan-glow: rgba(0, 229, 255, 0.38);
+      --ab-cyan-soft: rgba(0, 229, 255, 0.12);
+      
+      --ab-purple: #7c4dff;
+      --ab-purple-glow: rgba(124, 77, 255, 0.38);
+      --ab-purple-soft: rgba(124, 77, 255, 0.14);
+
+      --ab-accent-gradient: linear-gradient(135deg, #00e5ff 0%, #7c4dff 100%);
+      --ab-card-gradient: linear-gradient(160deg, rgba(21, 25, 40, 0.95) 0%, rgba(11, 13, 22, 0.98) 100%);
+
+      /* الألوان المساعدة وتنبيه الحرق والذهب */
+      --ab-gold: #ffb300;
+      --ab-gold-glow: rgba(255, 179, 0, 0.35);
+      --ab-danger-spoiler: #ff334b;
+      --ab-danger-soft: rgba(255, 51, 75, 0.15);
+      --ab-success-online: #00e676;
+
+      /* ألوان النصوص */
+      --ab-text-primary: #f8fafc;
+      --ab-text-secondary: #94a3b8;
+      --ab-text-tertiary: #64748b;
+      --ab-border-subtle: rgba(255, 255, 255, 0.08);
+      --ab-border-glow: rgba(0, 229, 255, 0.3);
+      --ab-border-purple: rgba(124, 77, 255, 0.35);
+
+      /* أنصاف الأقطار */
+      --ab-radius-xs: 8px;
+      --ab-radius-sm: 12px;
+      --ab-radius-md: 18px;
+      --ab-radius-lg: 24px;
+      --ab-radius-full: 9999px;
+
+      /* الخطوط والانتقالات */
+      --font-ar: 'Readex Pro', -apple-system, BlinkMacSystemFont, sans-serif;
+      --trans-fast: 0.18s cubic-bezier(0.4, 0, 0.2, 1);
+      --trans-normal: 0.28s cubic-bezier(0.4, 0, 0.2, 1);
+      --trans-spring: 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      -webkit-tap-highlight-color: transparent;
+      user-select: none;
+    }
+
+    html, body {
+      width: 100%;
+      min-height: 100%;
+      background-color: var(--ab-bg-deep);
+      color: var(--ab-text-primary);
+      font-family: var(--font-ar);
+      font-size: 14px;
+      line-height: 1.5;
+      overflow-x: hidden;
+    }
+
+    body {
+      background-image: 
+        radial-gradient(circle at 50% 0%, rgba(0, 229, 255, 0.07), transparent 32%),
+        radial-gradient(circle at 80% 45%, rgba(124, 77, 255, 0.06), transparent 40%);
+      background-attachment: fixed;
+    }
+
+    /* سكرول بار */
+    ::-webkit-scrollbar {
+      width: 4px;
+      height: 4px;
+    }
+    ::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: rgba(255, 255, 255, 0.15);
+      border-radius: var(--ab-radius-full);
+    }
+
+    /* ==========================================================================
+       هيكل التطبيق المستقل المتجاوب
+       ========================================================================== */
+    .app-root-wrapper {
+      width: 100%;
+      max-width: 520px;
+      margin: 0 auto;
+      min-height: 100vh;
+      background: var(--ab-bg-canvas);
+      position: relative;
+      box-shadow: 0 0 50px rgba(0, 0, 0, 0.85);
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* صفحات التطبيق الرئيسية الخمس (Single Page Views) */
+    .app-view {
+      display: none;
+      flex-direction: column;
+      width: 100%;
+      min-height: 100vh;
+      padding-bottom: 110px; /* مسافة أمان للشريط السفلي الثابت */
+      animation: fadeInView 0.25s ease;
+    }
+    .app-view.active {
+      display: flex;
+    }
+    @keyframes fadeInView {
+      from { opacity: 0; transform: translateY(4px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* ==========================================================================
+       الشريط السفلي العائم الثابت دائماً في أسفل الشاشة
+       ========================================================================== */
+    .bottom-nav-fixed-container {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      z-index: 9999;
+      display: flex;
+      justify-content: center;
+      padding: 10px 14px 16px;
+      pointer-events: none;
+      background: linear-gradient(to top, rgba(5, 6, 8, 0.98) 0%, rgba(5, 6, 8, 0.85) 65%, transparent 100%);
+    }
+    .floating-bottom-nav {
+      pointer-events: auto;
+      width: 100%;
+      max-width: 480px;
+      background: rgba(18, 22, 34, 0.94);
+      backdrop-filter: blur(28px);
+      -webkit-backdrop-filter: blur(28px);
+      border: 1px solid rgba(0, 229, 255, 0.35);
+      border-radius: var(--ab-radius-full);
+      padding: 8px 12px;
+      display: flex;
+      align-items: center;
+      justify-content: space-around;
+      box-shadow: 0 16px 45px rgba(0, 0, 0, 0.9), 0 0 25px rgba(0, 229, 255, 0.25);
+    }
+    .nav-tab-item {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 3px;
+      background: transparent;
+      border: none;
+      color: var(--ab-text-secondary);
+      padding: 6px 12px;
+      border-radius: var(--ab-radius-md);
+      cursor: pointer;
+      position: relative;
+      font-family: inherit;
+      transition: var(--trans-fast);
+      min-width: 58px;
+    }
+    .nav-tab-item:hover {
+      color: var(--ab-text-primary);
+    }
+    .nav-tab-item.active {
+      color: var(--ab-cyan);
+    }
+    .nav-tab-item.active svg {
+      filter: drop-shadow(0 0 8px var(--ab-cyan-glow));
+    }
+    .nav-tab-label {
+      font-size: 11px;
+      font-weight: 700;
+    }
+    .nav-indicator-pill {
+      position: absolute;
+      bottom: 2px;
+      width: 16px;
+      height: 3px;
+      background: var(--ab-cyan);
+      border-radius: var(--ab-radius-full);
+      box-shadow: 0 0 8px var(--ab-cyan);
+      display: none;
+    }
+    .nav-tab-item.active .nav-indicator-pill {
+      display: block;
+    }
+    .nav-tab-badge {
+      position: absolute;
+      top: 4px;
+      right: 14px;
+      background: var(--ab-danger-spoiler);
+      color: #fff;
+      font-size: 9px;
+      font-weight: 800;
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border: 2px solid var(--ab-bg-surface);
+    }
+
+    /* ==========================================================================
+       أولاً: الشريط العلوي المشترك
+       ========================================================================== */
+    .top-app-bar {
+      position: sticky;
+      top: 0;
+      z-index: 1000;
+      background: var(--ab-bg-glass-strong);
+      backdrop-filter: blur(24px);
+      -webkit-backdrop-filter: blur(24px);
+      border-bottom: 1px solid var(--ab-border-subtle);
+      padding: 10px 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+    .brand-identity {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      cursor: pointer;
+    }
+    .brand-logo-icon {
+      width: 40px;
+      height: 40px;
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      filter: drop-shadow(0 0 10px var(--ab-cyan-glow));
+      transition: var(--trans-spring);
+    }
+    .brand-logo-icon:hover {
+      transform: scale(1.08) rotate(-4deg);
+    }
+    .brand-title {
+      font-size: 17px;
+      font-weight: 800;
+      letter-spacing: -0.5px;
+      background: linear-gradient(135deg, #ffffff 30%, #00e5ff 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .brand-pro-badge {
+      font-size: 9px;
+      font-weight: 800;
+      padding: 1px 6px;
+      border-radius: var(--ab-radius-xs);
+      background: var(--ab-accent-gradient);
+      color: #050608;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .brand-tagline {
+      font-size: 10px;
+      color: var(--ab-text-tertiary);
+      font-weight: 500;
+    }
+
+    .top-actions-group {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .icon-action-btn {
+      width: 38px;
+      height: 38px;
+      border-radius: var(--ab-radius-sm);
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid var(--ab-border-subtle);
+      color: var(--ab-text-secondary);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      position: relative;
+      transition: var(--trans-fast);
+    }
+    .icon-action-btn:hover {
+      background: rgba(0, 229, 255, 0.1);
+      color: var(--ab-cyan);
+      border-color: var(--ab-cyan-soft);
+      transform: translateY(-1px);
+    }
+    .icon-action-btn.btn-create-top {
+      background: var(--ab-accent-gradient);
+      color: #050608;
+      border: none;
+      box-shadow: 0 0 15px var(--ab-cyan-glow);
+    }
+    .icon-action-btn.btn-create-top:hover {
+      transform: scale(1.06);
+      box-shadow: 0 0 25px rgba(0, 229, 255, 0.6);
+    }
+    .badge-indicator {
+      position: absolute;
+      top: 6px;
+      right: 6px;
+      width: 8px;
+      height: 8px;
+      background: var(--ab-danger-spoiler);
+      border-radius: 50%;
+      box-shadow: 0 0 8px var(--ab-danger-spoiler);
+      animation: pulse-dot 2s infinite;
+    }
+    @keyframes pulse-dot {
+      0%, 100% { transform: scale(1); opacity: 1; }
+      50% { transform: scale(1.3); opacity: 0.7; }
+    }
+    .top-user-avatar {
+      position: relative;
+      width: 38px;
+      height: 38px;
+      border-radius: var(--ab-radius-full);
+      padding: 2px;
+      background: var(--ab-accent-gradient);
+      cursor: pointer;
+    }
+    .top-user-avatar img {
+      width: 100%;
+      height: 100%;
+      border-radius: 50%;
+      object-fit: cover;
+      display: block;
+      background: #1f2438;
+    }
+    .avatar-level-chip {
+      position: absolute;
+      bottom: -4px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: #000;
+      border: 1px solid var(--ab-cyan);
+      color: var(--ab-cyan);
+      font-size: 9px;
+      font-weight: 800;
+      padding: 0 4px;
+      border-radius: 4px;
+      line-height: 13px;
+    }
+
+    /* مربع البحث السريع */
+    .search-bar-container {
+      padding: 8px 16px 4px;
+    }
+    .search-input-box {
+      width: 100%;
+      background: var(--ab-bg-surface);
+      border: 1px solid var(--ab-border-subtle);
+      border-radius: var(--ab-radius-md);
+      padding: 10px 16px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      color: var(--ab-text-secondary);
+      transition: var(--trans-fast);
+      cursor: text;
+    }
+    .search-input-box:focus-within, .search-input-box:hover {
+      border-color: var(--ab-cyan);
+      background: var(--ab-bg-surface-elevated);
+      box-shadow: 0 0 15px rgba(0, 229, 255, 0.15);
+      color: var(--ab-text-primary);
+    }
+    .search-input-box input {
+      background: transparent;
+      border: none;
+      outline: none;
+      width: 100%;
+      color: var(--ab-text-primary);
+      font-size: 13px;
+      font-family: inherit;
+    }
+
+    /* القصص */
+    .stories-section {
+      padding: 12px 0 6px;
+    }
+    .stories-scroll-container {
+      display: flex;
+      gap: 14px;
+      padding: 4px 16px 8px;
+      overflow-x: auto;
+      scrollbar-width: none;
+    }
+    .stories-scroll-container::-webkit-scrollbar {
+      display: none;
+    }
+    .story-item {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 6px;
+      cursor: pointer;
+      position: relative;
+      flex-shrink: 0;
+      width: 66px;
+      text-align: center;
+      transition: var(--trans-fast);
+    }
+    .story-item:hover {
+      transform: translateY(-2px);
+    }
+    .story-ring-wrapper {
+      width: 62px;
+      height: 62px;
+      border-radius: 50%;
+      padding: 2.5px;
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: var(--ab-border-subtle);
+      transition: var(--trans-spring);
+    }
+    .story-item.unread .story-ring-wrapper {
+      background: linear-gradient(135deg, var(--ab-cyan) 0%, var(--ab-purple) 60%, #ff3399 100%);
+      box-shadow: 0 0 14px rgba(0, 229, 255, 0.4);
+    }
+    .story-avatar-img {
+      width: 100%;
+      height: 100%;
+      border-radius: 50%;
+      object-fit: cover;
+      background: #181d2e;
+      border: 2px solid var(--ab-bg-canvas);
+    }
+    .my-story-add-badge {
+      position: absolute;
+      bottom: 0;
+      right: 0;
+      width: 20px;
+      height: 20px;
+      background: var(--ab-cyan);
+      color: #000;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 14px;
+      font-weight: 900;
+      border: 2px solid var(--ab-bg-canvas);
+      box-shadow: 0 0 8px var(--ab-cyan-glow);
+    }
+    .story-online-dot {
+      position: absolute;
+      top: 2px;
+      right: 4px;
+      width: 10px;
+      height: 10px;
+      background: var(--ab-success-online);
+      border-radius: 50%;
+      border: 2px solid var(--ab-bg-canvas);
+    }
+    .story-user-name {
+      font-size: 11px;
+      font-weight: 500;
+      color: var(--ab-text-secondary);
+      width: 100%;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    /* بطاقة مستوى المستخدم (Black Status) */
+    .status-card-section {
+      padding: 6px 16px 12px;
+    }
+    .black-status-card {
+      background: var(--ab-card-gradient);
+      border: 1px solid var(--ab-border-glow);
+      border-radius: var(--ab-radius-lg);
+      padding: 16px;
+      position: relative;
+      overflow: hidden;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5), inset 0 0 20px rgba(0, 229, 255, 0.05);
+      transition: var(--trans-normal);
+    }
+    .status-header-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 12px;
+      position: relative;
+      z-index: 2;
+    }
+    .status-user-info {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .status-tier-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      background: rgba(0, 229, 255, 0.12);
+      border: 1px solid var(--ab-cyan-soft);
+      color: var(--ab-cyan);
+      font-size: 11px;
+      font-weight: 700;
+      padding: 3px 10px;
+      border-radius: var(--ab-radius-full);
+    }
+    .status-pro-pill {
+      background: linear-gradient(135deg, #ffd700 0%, #ff9100 100%);
+      color: #000;
+      font-size: 10px;
+      font-weight: 800;
+      padding: 2px 7px;
+      border-radius: var(--ab-radius-full);
+    }
+    .status-collapse-toggle {
+      background: transparent;
+      border: none;
+      color: var(--ab-text-tertiary);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 11px;
+      font-family: inherit;
+    }
+    .status-collapse-icon {
+      transition: transform var(--trans-normal);
+    }
+    .black-status-card.collapsed .status-collapse-icon {
+      transform: rotate(180deg);
+    }
+    .status-main-grid {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 12px;
+      position: relative;
+      z-index: 2;
+    }
+    .black-status-card.collapsed .status-collapsible-body {
+      display: none;
+    }
+    .xp-label-row {
+      display: flex;
+      justify-content: space-between;
+      font-size: 12px;
+    }
+    .xp-title {
+      font-weight: 700;
+      color: var(--ab-text-primary);
+    }
+    .xp-numbers {
+      font-weight: 600;
+      color: var(--ab-cyan);
+    }
+    .xp-progress-track {
+      width: 100%;
+      height: 8px;
+      background: rgba(255, 255, 255, 0.08);
+      border-radius: var(--ab-radius-full);
+      overflow: hidden;
+      margin-top: 6px;
+    }
+    .xp-progress-fill {
+      height: 100%;
+      width: 72%;
+      background: var(--ab-accent-gradient);
+      border-radius: var(--ab-radius-full);
+      box-shadow: 0 0 10px var(--ab-cyan-glow);
+    }
+    .status-stats-row {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+      background: rgba(0, 0, 0, 0.3);
+      border-radius: var(--ab-radius-md);
+      padding: 10px;
+      border: 1px solid var(--ab-border-subtle);
+    }
+    .stat-box {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+    }
+    .stat-val {
+      font-size: 15px;
+      font-weight: 800;
+      color: var(--ab-text-primary);
+    }
+    .stat-val.gold { color: var(--ab-gold); }
+    .stat-val.cyan { color: var(--ab-cyan); }
+    .stat-val.purple { color: #d8b4fe; }
+    .stat-label {
+      font-size: 10px;
+      color: var(--ab-text-tertiary);
+    }
+    .daily-quest-mini {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: rgba(255, 255, 255, 0.03);
+      border-radius: var(--ab-radius-sm);
+      padding: 8px 12px;
+      font-size: 11px;
+      color: var(--ab-text-secondary);
+    }
+    .quest-tag {
+      color: var(--ab-gold);
+      font-weight: 700;
+    }
+    .quest-btn-claim {
+      background: var(--ab-gold);
+      color: #000;
+      border: none;
+      font-size: 10px;
+      font-weight: 800;
+      padding: 3px 8px;
+      border-radius: var(--ab-radius-xs);
+      cursor: pointer;
+    }
+
+    /* زر الحث على إنشاء المنشور */
+    .create-post-section {
+      padding: 0 16px 12px;
+    }
+    .create-post-card {
+      background: var(--ab-bg-surface);
+      border: 1px solid var(--ab-border-subtle);
+      border-radius: var(--ab-radius-lg);
+      padding: 12px 14px;
+      cursor: pointer;
+      transition: var(--trans-fast);
+    }
+    .create-post-card:hover {
+      border-color: rgba(0, 229, 255, 0.35);
+      box-shadow: 0 4px 18px rgba(0, 229, 255, 0.1);
+    }
+    .create-post-top-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 12px;
+    }
+    .create-user-avatar {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      object-fit: cover;
+      background: #1e2436;
+      border: 1.5px solid var(--ab-cyan-soft);
+      flex-shrink: 0;
+    }
+    .create-fake-input {
+      flex: 1;
+      background: var(--ab-bg-canvas);
+      border: 1px solid var(--ab-border-subtle);
+      border-radius: var(--ab-radius-full);
+      padding: 10px 16px;
+      font-size: 13px;
+      color: var(--ab-text-secondary);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .create-shortcuts-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-around;
+      padding-top: 8px;
+      border-top: 1px solid rgba(255, 255, 255, 0.05);
+      gap: 4px;
+    }
+    .shortcut-pill-btn {
+      background: transparent;
+      border: none;
+      color: var(--ab-text-secondary);
+      font-size: 11px;
+      font-weight: 500;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 10px;
+      border-radius: var(--ab-radius-md);
+      cursor: pointer;
+      font-family: inherit;
+    }
+    .shortcut-pill-btn:hover {
+      background: rgba(255, 255, 255, 0.06);
+      color: var(--ab-text-primary);
+    }
+    .shortcut-pill-btn.spoiler-action:hover {
+      color: var(--ab-danger-spoiler);
+    }
+    .shortcut-pill-btn.review-action:hover {
+      color: var(--ab-gold);
+    }
+
+    /* المجتمعات النشطة */
+    .communities-section {
+      padding: 4px 0 16px;
+    }
+    .section-header {
+      padding: 0 16px 10px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .section-title {
+      font-size: 15px;
+      font-weight: 700;
+      color: var(--ab-text-primary);
+    }
+    .section-counter {
+      font-size: 11px;
+      background: rgba(255, 255, 255, 0.06);
+      padding: 1px 7px;
+      border-radius: var(--ab-radius-full);
+      color: var(--ab-cyan);
+    }
+    .section-more-link {
+      color: var(--ab-cyan);
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      text-decoration: none;
+    }
+    .communities-scroll {
+      display: flex;
+      gap: 12px;
+      padding: 0 16px 6px;
+      overflow-x: auto;
+      scrollbar-width: none;
+    }
+    .communities-scroll::-webkit-scrollbar {
+      display: none;
+    }
+    .community-card {
+      width: 220px;
+      background: var(--ab-bg-surface);
+      border: 1px solid var(--ab-border-subtle);
+      border-radius: var(--ab-radius-lg);
+      padding: 14px;
+      flex-shrink: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      position: relative;
+      overflow: hidden;
+      transition: var(--trans-normal);
+      cursor: pointer;
+    }
+    .community-card:hover {
+      transform: translateY(-3px);
+      border-color: rgba(0, 229, 255, 0.3);
+    }
+    .community-card-banner {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 48px;
+      background-size: cover;
+      background-position: center;
+      opacity: 0.35;
+    }
+    .community-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      position: relative;
+      z-index: 2;
+    }
+    .community-avatar {
+      width: 44px;
+      height: 44px;
+      border-radius: var(--ab-radius-md);
+      object-fit: cover;
+      border: 2px solid var(--ab-bg-surface);
+    }
+    .community-meta {
+      flex: 1;
+      overflow: hidden;
+    }
+    .community-name {
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--ab-text-primary);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .community-stats {
+      font-size: 11px;
+      color: var(--ab-text-secondary);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .online-indicator-dot {
+      width: 6px;
+      height: 6px;
+      background: var(--ab-success-online);
+      border-radius: 50%;
+    }
+    .community-last-topic {
+      font-size: 11px;
+      color: var(--ab-text-tertiary);
+      line-height: 1.4;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+      min-height: 30px;
+    }
+    .community-btn-join {
+      width: 100%;
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid var(--ab-border-subtle);
+      color: var(--ab-text-primary);
+      padding: 7px;
+      border-radius: var(--ab-radius-full);
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      font-family: inherit;
+    }
+    .community-btn-join.joined {
+      background: rgba(0, 230, 118, 0.1);
+      border-color: var(--ab-success-online);
+      color: var(--ab-success-online);
+    }
+
+    /* فلاتر الخلاصة */
+    .feed-filters-section {
+      position: sticky;
+      top: 60px;
+      z-index: 85;
+      background: var(--ab-bg-glass-strong);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border-bottom: 1px solid var(--ab-border-subtle);
+      padding: 8px 0;
+    }
+    .filters-scroll {
+      display: flex;
+      gap: 8px;
+      padding: 0 16px;
+      overflow-x: auto;
+      scrollbar-width: none;
+    }
+    .filters-scroll::-webkit-scrollbar {
+      display: none;
+    }
+    .filter-chip {
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid var(--ab-border-subtle);
+      color: var(--ab-text-secondary);
+      font-size: 12px;
+      font-weight: 500;
+      padding: 7px 14px;
+      border-radius: var(--ab-radius-full);
+      cursor: pointer;
+      white-space: nowrap;
+      transition: var(--trans-fast);
+      font-family: inherit;
+    }
+    .filter-chip:hover {
+      background: rgba(255, 255, 255, 0.08);
+      color: var(--ab-text-primary);
+    }
+    .filter-chip.active {
+      background: var(--ab-cyan);
+      color: #050608;
+      border-color: var(--ab-cyan);
+      font-weight: 700;
+      box-shadow: 0 0 14px var(--ab-cyan-glow);
+    }
+
+    /* المنشورات الاجتماعية */
+    .social-feed-container {
+      padding: 14px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+    .post-card {
+      background: var(--ab-bg-card);
+      border: 1px solid var(--ab-border-subtle);
+      border-radius: var(--ab-radius-lg);
+      padding: 16px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      position: relative;
+    }
+    .post-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .post-author-box {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      cursor: pointer;
+    }
+    .post-author-avatar-wrap {
+      position: relative;
+      width: 44px;
+      height: 44px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+    .post-author-avatar {
+      width: 100%;
+      height: 100%;
+      border-radius: 50%;
+      object-fit: cover;
+      background: #1c2235;
+    }
+    .post-author-name {
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--ab-text-primary);
+    }
+    .user-level-tag {
+      font-size: 10px;
+      font-weight: 800;
+      background: rgba(124, 77, 255, 0.18);
+      border: 1px solid var(--ab-purple);
+      color: #c4b5fd;
+      padding: 1px 6px;
+      border-radius: var(--ab-radius-xs);
+    }
+    .user-level-tag.elite {
+      background: rgba(255, 179, 0, 0.15);
+      border-color: var(--ab-gold);
+      color: var(--ab-gold);
+    }
+    .post-time-sub {
+      font-size: 11px;
+      color: var(--ab-text-tertiary);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .post-category-tag {
+      color: var(--ab-cyan);
+      font-weight: 600;
+    }
+    .post-more-btn {
+      background: transparent;
+      border: none;
+      color: var(--ab-text-tertiary);
+      cursor: pointer;
+      padding: 6px;
+    }
+    .post-content-text {
+      font-size: 14px;
+      line-height: 1.6;
+      color: var(--ab-text-primary);
+      word-break: break-word;
+    }
+
+    /* حرق الأحداث */
+    .spoiler-container {
+      position: relative;
+      border-radius: var(--ab-radius-md);
+      overflow: hidden;
+      background: rgba(255, 51, 75, 0.05);
+      border: 1px dashed rgba(255, 51, 75, 0.4);
+    }
+    .spoiler-overlay-gate {
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      text-align: center;
+      cursor: pointer;
+      background: rgba(14, 16, 24, 0.94);
+      backdrop-filter: blur(10px);
+    }
+    .spoiler-title {
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--ab-danger-spoiler);
+    }
+    .spoiler-desc {
+      font-size: 11px;
+      color: var(--ab-text-secondary);
+    }
+    .spoiler-content-hidden {
+      display: none;
+      padding: 16px;
+      animation: fadeIn 0.3s ease;
+    }
+    .spoiler-container.revealed .spoiler-overlay-gate {
+      display: none;
+    }
+    .spoiler-container.revealed .spoiler-content-hidden {
+      display: block;
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+
+    /* بطاقة الأنمي المرتبط */
+    .attached-anime-card {
+      background: rgba(0, 0, 0, 0.35);
+      border: 1px solid rgba(0, 229, 255, 0.2);
+      border-radius: var(--ab-radius-md);
+      padding: 10px 12px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      cursor: pointer;
+    }
+    .attached-anime-poster {
+      width: 48px;
+      height: 68px;
+      border-radius: var(--ab-radius-sm);
+      object-fit: cover;
+      flex-shrink: 0;
+    }
+    .attached-anime-title {
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--ab-text-primary);
+    }
+    .attached-anime-jp {
+      font-size: 10px;
+      color: var(--ab-text-tertiary);
+    }
+    .attached-anime-add-btn {
+      background: var(--ab-cyan-soft);
+      border: 1px solid var(--ab-cyan);
+      color: var(--ab-cyan);
+      border-radius: var(--ab-radius-full);
+      padding: 6px 12px;
+      font-size: 11px;
+      font-weight: 700;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+
+    /* شريط التفاعل */
+    .post-actions-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding-top: 10px;
+      border-top: 1px solid rgba(255, 255, 255, 0.06);
+    }
+    .post-action-btn {
+      background: transparent;
+      border: none;
+      color: var(--ab-text-secondary);
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+      font-weight: 600;
+      padding: 6px 10px;
+      border-radius: var(--ab-radius-sm);
+      font-family: inherit;
+    }
+    .post-action-btn.liked {
+      color: #ff3366;
+    }
+    .post-action-btn.liked svg {
+      fill: #ff3366;
+      stroke: #ff3366;
+    }
+    .post-action-btn.bookmarked {
+      color: var(--ab-cyan);
+    }
+    .post-action-btn.bookmarked svg {
+      fill: var(--ab-cyan);
+      stroke: var(--ab-cyan);
+    }
+
+    /* الرادار والاكتشاف */
+    .discover-interleaved-widget, .radar-interleaved-widget, .reels-interleaved-widget {
+      background: var(--ab-bg-surface);
+      border: 1px solid var(--ab-border-subtle);
+      border-radius: var(--ab-radius-lg);
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .discover-scroll-row, .reels-scroll-row {
+      display: flex;
+      gap: 12px;
+      overflow-x: auto;
+      scrollbar-width: none;
+    }
+    .discover-item-card {
+      width: 130px;
+      flex-shrink: 0;
+      cursor: pointer;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .discover-poster-wrap {
+      width: 100%;
+      height: 180px;
+      border-radius: var(--ab-radius-md);
+      overflow: hidden;
+      position: relative;
+    }
+    .discover-poster-img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+    .countdown-display {
+      font-family: monospace;
+      font-size: 12px;
+      font-weight: 700;
+      color: #ffd700;
+      background: rgba(0, 0, 0, 0.4);
+      padding: 4px 8px;
+      border-radius: var(--ab-radius-xs);
+    }
+
+    /* ==========================================================================
+       صفحة المجتمع المخصصة (Community Page View)
+       ========================================================================== */
+    .community-page-header {
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+    .community-tabs-row {
+      display: flex;
+      gap: 8px;
+      overflow-x: auto;
+    }
+    .community-grid-list {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 12px;
+      padding: 0 16px;
+    }
+    .full-community-card {
+      background: var(--ab-bg-card);
+      border: 1px solid var(--ab-border-subtle);
+      border-radius: var(--ab-radius-lg);
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      cursor: pointer;
+      transition: var(--trans-fast);
+    }
+    .full-community-card:hover {
+      border-color: var(--ab-cyan);
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+    }
+
+    /* ==========================================================================
+       صفحة الدردشة المخصصة (Chat Page View)
+       ========================================================================== */
+    .chat-page-header {
+      padding: 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid var(--ab-border-subtle);
+    }
+    .chat-list {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      padding: 12px 16px;
+    }
+    .chat-item-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      background: var(--ab-bg-surface);
+      border: 1px solid var(--ab-border-subtle);
+      border-radius: var(--ab-radius-lg);
+      padding: 12px 14px;
+      cursor: pointer;
+      transition: var(--trans-fast);
+    }
+    .chat-item-row:hover {
+      background: var(--ab-bg-surface-elevated);
+      border-color: rgba(0, 229, 255, 0.3);
+    }
+    .chat-avatar-wrap {
+      position: relative;
+      width: 48px;
+      height: 48px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+    .chat-avatar {
+      width: 100%;
+      height: 100%;
+      border-radius: 50%;
+      object-fit: cover;
+    }
+
+    /* غرفة الدردشة التفاعلية المنبثقة */
+    .active-chat-room-overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 10005;
+      background: var(--ab-bg-canvas);
+      display: none;
+      flex-direction: column;
+    }
+    .active-chat-room-overlay.active {
+      display: flex;
+    }
+    .chat-room-header {
+      padding: 12px 16px;
+      background: var(--ab-bg-glass-strong);
+      backdrop-filter: blur(20px);
+      border-bottom: 1px solid var(--ab-border-subtle);
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .chat-messages-area {
+      flex: 1;
+      overflow-y: auto;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .chat-bubble {
+      max-width: 75%;
+      padding: 10px 14px;
+      border-radius: 18px;
+      font-size: 13px;
+      line-height: 1.4;
+    }
+    .chat-bubble.mine {
+      align-self: flex-start;
+      background: var(--ab-accent-gradient);
+      color: #04060a;
+      font-weight: 600;
+      border-bottom-right-radius: 4px;
+    }
+    [dir="rtl"] .chat-bubble.mine {
+      align-self: flex-start;
+      border-bottom-right-radius: 18px;
+      border-bottom-left-radius: 4px;
+    }
+    .chat-bubble.theirs {
+      align-self: flex-end;
+      background: var(--ab-bg-surface-elevated);
+      color: var(--ab-text-primary);
+      border: 1px solid var(--ab-border-subtle);
+    }
+    .chat-input-bar {
+      padding: 12px 16px;
+      background: var(--ab-bg-surface);
+      border-top: 1px solid var(--ab-border-subtle);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    /* ==========================================================================
+       صفحة الريلز المخصصة (Reels Page View)
+       ========================================================================== */
+    .reels-fullscreen-feed {
+      width: 100%;
+      height: 100vh;
+      position: relative;
+      background: #000;
+      overflow: hidden;
+    }
+    .reel-slide-item {
+      width: 100%;
+      height: 100%;
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-end;
+      padding-bottom: 100px;
+    }
+    .reel-bg-video-mock {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+    .reel-side-actions {
+      position: absolute;
+      bottom: 120px;
+      left: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      align-items: center;
+      z-index: 20;
+    }
+
+    /* ==========================================================================
+       صفحة المزيد والملف الشخصي والمتجر (More / Profile Page View)
+       ========================================================================== */
+    .profile-hero-card {
+      margin: 16px;
+      background: var(--ab-card-gradient);
+      border: 1px solid var(--ab-border-glow);
+      border-radius: var(--ab-radius-xl);
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+      gap: 12px;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6);
+    }
+    .profile-huge-avatar {
+      width: 80px;
+      height: 80px;
+      border-radius: 50%;
+      border: 3px solid var(--ab-cyan);
+      box-shadow: 0 0 20px var(--ab-cyan-glow);
+    }
+    .settings-group-card {
+      margin: 0 16px 14px;
+      background: var(--ab-bg-surface);
+      border: 1px solid var(--ab-border-subtle);
+      border-radius: var(--ab-radius-lg);
+      overflow: hidden;
+    }
+    .settings-row-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 14px 16px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+      cursor: pointer;
+      transition: var(--trans-fast);
+    }
+    .settings-row-item:hover {
+      background: rgba(255, 255, 255, 0.04);
+    }
+
+    /* ==========================================================================
+       صفحة إنشاء المنشور المستقلة بالكامل (Full-Screen Create Post Page)
+       ========================================================================== */
+    .create-post-fullscreen-page {
+      position: fixed;
+      inset: 0;
+      z-index: 10001;
+      background: var(--ab-bg-canvas);
+      display: none;
+      flex-direction: column;
+      overflow-y: auto;
+      animation: slideInPage 0.28s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    .create-post-fullscreen-page.active {
+      display: flex;
+    }
+    @keyframes slideInPage {
+      from { transform: translateY(100%); opacity: 0; }
+      to { transform: translateY(0); opacity: 1; }
+    }
+    .cp-top-bar {
+      position: sticky;
+      top: 0;
+      z-index: 50;
+      background: var(--ab-bg-glass-strong);
+      backdrop-filter: blur(20px);
+      border-bottom: 1px solid var(--ab-border-subtle);
+      padding: 12px 18px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .cp-back-btn {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid var(--ab-border-subtle);
+      color: var(--ab-text-primary);
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .cp-publish-btn {
+      background: var(--ab-accent-gradient);
+      color: #04060a;
+      border: none;
+      padding: 8px 22px;
+      border-radius: var(--ab-radius-full);
+      font-size: 13px;
+      font-weight: 800;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      box-shadow: 0 0 20px var(--ab-cyan-glow);
+      font-family: inherit;
+    }
+    .cp-container {
+      width: 100%;
+      max-width: 580px;
+      margin: 0 auto;
+      padding: 20px 16px 80px;
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+    }
+    .cp-post-type-tabs {
+      display: flex;
+      gap: 8px;
+      overflow-x: auto;
+      padding-bottom: 4px;
+    }
+    .cp-type-tab {
+      background: var(--ab-bg-surface);
+      border: 1px solid var(--ab-border-subtle);
+      color: var(--ab-text-secondary);
+      padding: 8px 16px;
+      border-radius: var(--ab-radius-md);
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      white-space: nowrap;
+      font-family: inherit;
+    }
+    .cp-type-tab.active {
+      background: var(--ab-cyan-soft);
+      border-color: var(--ab-cyan);
+      color: var(--ab-cyan);
+      box-shadow: 0 0 12px var(--ab-cyan-glow);
+    }
+    .cp-textarea-card {
+      background: var(--ab-bg-surface);
+      border: 1px solid var(--ab-border-subtle);
+      border-radius: var(--ab-radius-lg);
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .cp-main-textarea {
+      width: 100%;
+      min-height: 140px;
+      background: transparent;
+      border: none;
+      outline: none;
+      color: var(--ab-text-primary);
+      font-size: 15px;
+      font-family: inherit;
+      line-height: 1.6;
+      resize: vertical;
+    }
+    .cp-quick-tag-chip {
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid var(--ab-border-subtle);
+      color: var(--ab-cyan);
+      padding: 3px 8px;
+      border-radius: var(--ab-radius-xs);
+      font-size: 11px;
+      cursor: pointer;
+    }
+
+    /* Modals & Toasts */
+    .modal-backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.85);
+      backdrop-filter: blur(14px);
+      z-index: 10002;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+    }
+    .modal-backdrop.active {
+      display: flex;
+    }
+    .modal-window {
+      background: var(--ab-bg-surface-elevated);
+      border: 1px solid var(--ab-border-glow);
+      border-radius: var(--ab-radius-xl);
+      width: 100%;
+      max-width: 480px;
+      max-height: 90vh;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+    }
+    .modal-header {
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--ab-border-subtle);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .modal-close-btn {
+      background: rgba(255, 255, 255, 0.06);
+      border: none;
+      color: var(--ab-text-secondary);
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      cursor: pointer;
+    }
+    .toast-container {
+      position: fixed;
+      bottom: 85px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 10003;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      pointer-events: none;
+    }
+    .toast-pill {
+      background: rgba(14, 16, 25, 0.95);
+      border: 1px solid var(--ab-cyan);
+      color: var(--ab-text-primary);
+      padding: 9px 20px;
+      border-radius: var(--ab-radius-full);
+      font-size: 12px;
+      font-weight: 700;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.8), 0 0 15px var(--ab-cyan-glow);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+  </style>
+</head>
+
+<body>
+
+  <div class="app-root-wrapper">
+
+    <!-- ======================================================================
+         1. صفحة الرئيسية الكاملة (Home View)
+         ====================================================================== -->
+    <div class="app-view active" id="viewHome">
+      <!-- الشريط العلوي للرئيسية -->
+      <header class="top-app-bar">
+        <div class="brand-identity">
+          <div class="brand-logo-icon">
+            <svg width="40" height="40" viewBox="0 0 100 100" fill="none">
+              <defs>
+                <linearGradient id="abLogoGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                  <stop offset="0%" stop-color="#00E5FF"/>
+                  <stop offset="60%" stop-color="#7C4DFF"/>
+                  <stop offset="100%" stop-color="#BD00FF"/>
+                </linearGradient>
+              </defs>
+              <polygon points="50,4 92,26 92,74 50,96 8,74 8,26" fill="#0C0E17" stroke="url(#abLogoGrad)" stroke-width="4.5"/>
+              <path d="M42,28 L58,28 C64,28 68,32 68,38 C68,44 64,48 58,48 L42,48 Z" fill="#fff"/>
+              <path d="M42,52 L60,52 C66,52 70,56 70,62 C70,68 66,72 60,72 L42,72 Z" fill="#fff"/>
+              <line x1="20" y1="80" x2="80" y2="20" stroke="#00E5FF" stroke-width="2.5" stroke-linecap="round"/>
+            </svg>
+          </div>
+          <div>
+            <div class="brand-title">ANIME BLACK <span class="brand-pro-badge">V2.4</span></div>
+            <div class="brand-tagline">عالم الأنمي الاجتماعي</div>
+          </div>
+        </div>
+
+        <div class="top-actions-group">
+          <!-- زر إنشاء منشور (+) -->
+          <button class="icon-action-btn btn-create-top" id="btnTopOpenCreatePage" title="إنشاء منشور جديد">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          </button>
+          <!-- زر البحث -->
+          <button class="icon-action-btn" id="btnTopSearch" title="بحث">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          </button>
+          <!-- زر الإشعارات -->
+          <button class="icon-action-btn" id="btnTopNotifications" title="الإشعارات">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+            <span class="badge-indicator"></span>
+          </button>
+          <!-- البروفايل -->
+          <div class="top-user-avatar" id="btnUserMenu">
+            <img src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80" alt="Avatar">
+            <span class="avatar-level-chip">18</span>
+          </div>
+        </div>
+      </header>
+
+      <!-- حقل البحث السريع -->
+      <div class="search-bar-container">
+        <div class="search-input-box" id="quickSearchBox">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          <input type="text" id="mainSearchInput" placeholder="ابحث عن أنمي، مانجا، مجتمعات، أصدقاء...">
+        </div>
+      </div>
+
+      <!-- القصص -->
+      <section class="stories-section">
+        <div class="stories-scroll-container" id="storiesContainer"></div>
+      </section>
+
+      <!-- بطاقة مستوى المستخدم Black Status -->
+      <section class="status-card-section">
+        <div class="black-status-card" id="blackStatusCard">
+          <div class="status-header-row">
+            <div class="status-user-info">
+              <span class="status-tier-badge">⭐ <span>S-Rank • Shadow Monarch</span></span>
+              <span class="status-pro-pill">BLACK VIP</span>
+            </div>
+            <button class="status-collapse-toggle" id="btnToggleStatusCard">
+              <span>الإحصائيات</span>
+              <svg class="status-collapse-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+            </button>
+          </div>
+          <div class="status-main-grid status-collapsible-body">
+            <div>
+              <div class="xp-label-row">
+                <span class="xp-title">المستوى 18 (مُحب متقدم)</span>
+                <span class="xp-numbers"><strong id="currentXp">1,450</strong> / 2,000 XP</span>
+              </div>
+              <div class="xp-progress-track">
+                <div class="xp-progress-fill" id="xpProgressBar" style="width: 72%;"></div>
+              </div>
+            </div>
+            <div class="status-stats-row">
+              <div class="stat-box"><span class="stat-val gold">🪙 850</span><span class="stat-label">عملات</span></div>
+              <div class="stat-box"><span class="stat-val cyan">🌟 48</span><span class="stat-label">شارات</span></div>
+              <div class="stat-box"><span class="stat-val purple">✍️ 132</span><span class="stat-label">مراجعات</span></div>
+            </div>
+            <div class="daily-quest-mini">
+              <span>مهمة اليوم: علّق على 3 نقاشات (2/3)</span>
+              <button class="quest-btn-claim" id="btnClaimReward">+50 XP</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- زر الحث على إنشاء المنشور -->
+      <section class="create-post-section">
+        <div class="create-post-card" id="triggerOpenCreatePage">
+          <div class="create-post-top-row">
+            <img src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80" alt="Avatar" class="create-user-avatar">
+            <div class="create-fake-input">
+              <span>شو عم تتابع اليوم؟ شارك مجتمعك...</span>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+            </div>
+          </div>
+          <div class="create-shortcuts-row">
+            <button class="shortcut-pill-btn" data-action="media">🖼️ صورة/فيديو</button>
+            <button class="shortcut-pill-btn review-action" data-action="review">⭐ مراجعة</button>
+            <button class="shortcut-pill-btn" data-action="poll">📊 استطلاع</button>
+            <button class="shortcut-pill-btn spoiler-action" data-action="spoiler">⚠️ حرق</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- المجتمعات النشطة -->
+      <section class="communities-section">
+        <div class="section-header">
+          <div style="display:flex; align-items:center; gap:8px;">
+            <h2 class="section-title">المجتمعات النشطة</h2>
+            <span class="section-counter">12+</span>
+          </div>
+          <a class="section-more-link" id="btnGoToCommunityTab">استكشف الكل →</a>
+        </div>
+        <div class="communities-scroll" id="communitiesScrollContainer"></div>
+      </section>
+
+      <!-- فلاتر الخلاصة -->
+      <nav class="feed-filters-section">
+        <div class="filters-scroll" id="feedFiltersRow">
+          <button class="filter-chip active" data-filter="all">🌟 لك (For You)</button>
+          <button class="filter-chip" data-filter="following">👥 أتابعهم</button>
+          <button class="filter-chip" data-filter="latest">⚡ الأحدث</button>
+          <button class="filter-chip" data-filter="trending">🔥 الأكثر تفاعلاً</button>
+          <button class="filter-chip" data-filter="reviews">⭐ المراجعات</button>
+          <button class="filter-chip" data-filter="theories">🔮 النظريات</button>
+        </div>
+      </nav>
+
+      <!-- المنشورات الاجتماعية -->
+      <div class="social-feed-container" id="socialFeedContainer"></div>
+    </div>
+
+    <!-- ======================================================================
+         2. صفحة المجتمع المخصصة بالكامل (Community View)
+         ====================================================================== -->
+    <div class="app-view" id="viewCommunity">
+      <header class="top-app-bar">
+        <div class="brand-title">مجتمعات Anime Black 🛡️</div>
+        <button class="cp-publish-btn" style="padding:6px 14px; font-size:11px;" id="btnCreateCommunity">
+          + إنشاء مجتمع
+        </button>
+      </header>
+
+      <div class="community-page-header">
+        <div class="search-input-box">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          <input type="text" placeholder="ابحث بين آلاف مجتمعات الأنمي والمانجا...">
+        </div>
+        <div class="community-tabs-row">
+          <button class="filter-chip active">الكل</button>
+          <button class="filter-chip">مجتمعاتي المنضم إليها (2)</button>
+          <button class="filter-chip">أنميات الشونين</button>
+          <button class="filter-chip">استوديوهات الإنتاج</button>
+          <button class="filter-chip">مانجا ومانهوا</button>
+        </div>
+      </div>
+
+      <div class="community-grid-list" id="fullCommunityList">
+        <!-- سيتم حقن البطاقات الكاملة ديناميكياً -->
+      </div>
+    </div>
+
+    <!-- ======================================================================
+         3. صفحة الدردشة والمحادثات المخصصة بالكامل (Chat View)
+         ====================================================================== -->
+    <div class="app-view" id="viewChat">
+      <header class="top-app-bar">
+        <div class="brand-title">الدردشات والغرف المباشرة 💬</div>
+        <button class="icon-action-btn" id="btnNewChat">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        </button>
+      </header>
+
+      <div class="chat-list" id="chatListContainer">
+        <!-- المحادثة 1: غرفة عامة -->
+        <div class="chat-item-row" data-chat-user="نقاشات هجوم العمالقة المباشرة" data-chat-avatar="https://images.unsplash.com/photo-1563089145-599997674d42?auto=format&fit=crop&w=150&q=80">
+          <div class="chat-avatar-wrap">
+            <img src="https://images.unsplash.com/photo-1563089145-599997674d42?auto=format&fit=crop&w=150&q=80" class="chat-avatar">
+            <span class="story-online-dot"></span>
+          </div>
+          <div style="flex:1;">
+            <div style="display:flex; justify-content:space-between;">
+              <span style="font-weight:700; font-size:14px;">نقاشات Attack on Titan 🔥</span>
+              <span style="font-size:11px; color:var(--ab-text-tertiary);">الآن</span>
+            </div>
+            <div style="font-size:12px; color:var(--ab-text-secondary); margin-top:2px;">عمر: إيرين في النهاية اختار الحرية لأصدقائه...</div>
+          </div>
+          <span class="nav-tab-badge" style="position:static;">3</span>
+        </div>
+
+        <!-- المحادثة 2: صديق مباشر -->
+        <div class="chat-item-row" data-chat-user="سارة النقّادة" data-chat-avatar="https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=150&q=80">
+          <div class="chat-avatar-wrap">
+            <img src="https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=150&q=80" class="chat-avatar">
+            <span class="story-online-dot"></span>
+          </div>
+          <div style="flex:1;">
+            <div style="display:flex; justify-content:space-between;">
+              <span style="font-weight:700; font-size:14px;">سارة النقّادة ⭐</span>
+              <span style="font-size:11px; color:var(--ab-text-tertiary);">منذ 10د</span>
+            </div>
+            <div style="font-size:12px; color:var(--ab-cyan); margin-top:2px;">شو رأيك بآخر حلقة نزلت اليوم؟</div>
+          </div>
+        </div>
+
+        <!-- المحادثة 3 -->
+        <div class="chat-item-row" data-chat-user="غوجو ساتورو" data-chat-avatar="https://images.unsplash.com/photo-1569003339405-ea396a5a8a90?auto=format&fit=crop&w=150&q=80">
+          <div class="chat-avatar-wrap">
+            <img src="https://images.unsplash.com/photo-1569003339405-ea396a5a8a90?auto=format&fit=crop&w=150&q=80" class="chat-avatar">
+          </div>
+          <div style="flex:1;">
+            <div style="display:flex; justify-content:space-between;">
+              <span style="font-weight:700; font-size:14px;">غوجو ساتورو ⚡</span>
+              <span style="font-size:11px; color:var(--ab-text-tertiary);">أمس</span>
+            </div>
+            <div style="font-size:12px; color:var(--ab-text-secondary); margin-top:2px;">لا تقلق، أنا الأقوى! 😎</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ======================================================================
+         4. صفحة الريلز المخصصة بالكامل (Reels View)
+         ====================================================================== -->
+    <div class="app-view" id="viewReels" style="padding-bottom:0;">
+      <div class="reels-fullscreen-feed">
+        <div class="reel-slide-item">
+          <img src="https://images.unsplash.com/photo-1569003339405-ea396a5a8a90?auto=format&fit=crop&w=800&q=80" class="reel-bg-video-mock">
+          <div style="position:absolute; inset:0; background:linear-gradient(to top, rgba(0,0,0,0.9) 0%, transparent 60%);"></div>
+
+          <!-- الأزرار الجانبية التفاعلية -->
+          <div class="reel-side-actions">
+            <button class="icon-action-btn btn-reel-like" style="width:48px; height:48px; border-radius:50%; background:rgba(0,0,0,0.6); color:#ff3366;">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
+            </button>
+            <span style="font-size:12px; font-weight:800; color:#fff;" class="reel-like-num">142.5k</span>
+
+            <button class="icon-action-btn" style="width:48px; height:48px; border-radius:50%; background:rgba(0,0,0,0.6); color:#fff;" id="btnReelOpenComments">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>
+            </button>
+            <span style="font-size:12px; font-weight:800; color:#fff;">3,812</span>
+
+            <button class="icon-action-btn" style="width:48px; height:48px; border-radius:50%; background:rgba(0,0,0,0.6); color:#fff;" id="btnReelShare">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
+            </button>
+          </div>
+
+          <!-- معلومات المقطع والناشر -->
+          <div style="position:relative; z-index:20; padding:16px; margin-left:70px;">
+            <div style="display:flex; align-items:center; gap:8px; margin-bottom:8px;">
+              <img src="https://images.unsplash.com/photo-1578632767115-351597cf2477?auto=format&fit=crop&w=100&q=80" style="width:36px; height:36px; border-radius:50%; border:2px solid var(--ab-cyan);">
+              <span style="font-weight:800; font-size:14px; color:#fff;">@otaku_edits</span>
+              <button style="background:var(--ab-cyan); color:#000; border:none; padding:3px 10px; border-radius:12px; font-size:11px; font-weight:800; cursor:pointer;">متابعة</button>
+            </div>
+            <p style="font-size:13px; color:rgba(255,255,255,0.9); line-height:1.4;">أفضل لقطة قتال لغوجو في حادثة شيبويا بجودة 4K ⚡ مع تلوين نيون بلاك!</p>
+            <div style="font-size:11px; color:var(--ab-cyan); margin-top:6px;">🎵 الصوت الأصلي: Jujutsu Kaisen OST - Specialz</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ======================================================================
+         5. صفحة المزيد والملف الشخصي والمتجر (More / Profile View)
+         ====================================================================== -->
+    <div class="app-view" id="viewMore">
+      <header class="top-app-bar">
+        <div class="brand-title">مركز الأوتاكو والملف الشخصي ⚙️</div>
+      </header>
+
+      <!-- بطاقة البروفايل الفاخرة -->
+      <div class="profile-hero-card">
+        <img src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=200&q=80" class="profile-huge-avatar">
+        <div>
+          <h2 style="font-size:18px; font-weight:800;">أحمد الفارس (@monarch_ahmed)</h2>
+          <div style="color:var(--ab-gold); font-size:12px; font-weight:700; margin-top:3px;">
+            👑 S-Rank Shadow Monarch • Black Elite VIP
+          </div>
+        </div>
+        <div style="display:flex; gap:20px; border-top:1px solid rgba(255,255,255,0.08); padding-top:12px; width:100%; justify-content:center;">
+          <div><div style="font-weight:800; font-size:16px; color:var(--ab-cyan);">1,450</div><div style="font-size:11px; color:var(--ab-text-tertiary);">نقاط XP</div></div>
+          <div><div style="font-weight:800; font-size:16px; color:var(--ab-gold);">850</div><div style="font-size:11px; color:var(--ab-text-tertiary);">عملات بلاك</div></div>
+          <div><div style="font-weight:800; font-size:16px; color:#d8b4fe;">24</div><div style="font-size:11px; color:var(--ab-text-tertiary);">مستوى الرتبة</div></div>
+        </div>
+      </div>
+
+      <!-- أقسام وإعدادات وميزات أسطورية -->
+      <div class="settings-group-card">
+        <div class="settings-row-item" id="btnOpenStore">
+          <div style="display:flex; align-items:center; gap:10px;">
+            <span>🛒</span>
+            <span style="font-weight:600;">متجر Anime Black (شارات وألقاب وثيمات)</span>
+          </div>
+          <span style="color:var(--ab-gold); font-weight:700; font-size:12px;">850 🪙</span>
+        </div>
+        <div class="settings-row-item" id="btnOpenWatchlist">
+          <div style="display:flex; align-items:center; gap:10px;">
+            <span>📚</span>
+            <span style="font-weight:600;">مكتبتي وقائمة متابعة الأنمي (Watchlist)</span>
+          </div>
+          <span style="color:var(--ab-cyan); font-size:12px;">42 عمل →</span>
+        </div>
+        <div class="settings-row-item" id="btnOpenAchievements">
+          <div style="display:flex; align-items:center; gap:10px;">
+            <span>🏆</span>
+            <span style="font-weight:600;">شجرة المستويات والإنجازات</span>
+          </div>
+          <span style="color:var(--ab-purple); font-size:12px;">Lv. 18 →</span>
+        </div>
+      </div>
+
+      <div class="settings-group-card">
+        <div class="settings-row-item" id="btnThemeToggle">
+          <div style="display:flex; align-items:center; gap:10px;">
+            <span>🌙</span>
+            <span style="font-weight:600;">وضع النيون الفاخر (Premium Dark)</span>
+          </div>
+          <span style="color:var(--ab-success-online); font-size:12px;">مُفعّل ✓</span>
+        </div>
+        <div class="settings-row-item" id="btnPrivacy">
+          <div style="display:flex; align-items:center; gap:10px;">
+            <span>🛡️</span>
+            <span style="font-weight:600;">إعدادات الخصوصية وحجب الحرق التلقائي</span>
+          </div>
+          <span style="color:var(--ab-text-tertiary);">→</span>
+        </div>
+      </div>
+    </div>
+
+  </div> <!-- نهاية app-root-wrapper -->
+
+  <!-- ======================================================================
+       الشريط السفلي العائم الثابت (Floating Bottom Navigation)
+       ====================================================================== -->
+  <div class="bottom-nav-fixed-container">
+    <nav class="floating-bottom-nav">
+      <!-- 1. الرئيسية -->
+      <button class="nav-tab-item active" data-tab="home" title="الرئيسية">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+        <span class="nav-tab-label">الرئيسية</span>
+        <div class="nav-indicator-pill"></div>
+      </button>
+
+      <!-- 2. المجتمع -->
+      <button class="nav-tab-item" data-tab="community" title="المجتمعات">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+        <span class="nav-tab-label">المجتمع</span>
+        <div class="nav-indicator-pill"></div>
+      </button>
+
+      <!-- 3. الدردشة -->
+      <button class="nav-tab-item" data-tab="chat" title="الدردشات">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>
+        <span class="nav-tab-label">الدردشة</span>
+        <span class="nav-tab-badge">3</span>
+        <div class="nav-indicator-pill"></div>
+      </button>
+
+      <!-- 4. الريلز -->
+      <button class="nav-tab-item" data-tab="reels" title="الريلز">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="2" y="2" width="20" height="20" rx="2.18" ry="2.18"/><line x1="7" y1="2" x2="7" y2="22"/><line x1="17" y1="2" x2="17" y2="22"/><line x1="2" y1="12" x2="22" y2="12"/><line x1="2" y1="7" x2="7" y2="7"/><line x1="2" y1="17" x2="7" y2="17"/><line x1="17" y1="17" x2="22" y2="17"/><line x1="17" y1="7" x2="22" y2="7"/></svg>
+        <span class="nav-tab-label">الريلز</span>
+        <div class="nav-indicator-pill"></div>
+      </button>
+
+      <!-- 5. المزيد -->
+      <button class="nav-tab-item" data-tab="more" title="المزيد">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/><circle cx="5" cy="12" r="1.5"/></svg>
+        <span class="nav-tab-label">المزيد</span>
+        <div class="nav-indicator-pill"></div>
+      </button>
+    </nav>
+  </div>
+
+  <!-- ======================================================================
+       صفحة إنشاء المنشور المستقلة بالكامل (Full-Screen Create Post Page)
+       ====================================================================== -->
+  <div class="create-post-fullscreen-page" id="createPostPage">
+    <header class="cp-top-bar">
+      <button class="cp-back-btn" id="btnBackFromCreate">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
+      </button>
+      <div style="display:flex; flex-direction:column; align-items:center;">
+        <h1 style="font-size:16px; font-weight:800; background:var(--ab-accent-gradient); -webkit-background-clip:text; -webkit-text-fill-color:transparent;">إنشاء منشور جديد</h1>
+        <span style="font-size:10px; color:var(--ab-text-tertiary);">شارك شغفك في مجتمع Anime Black</span>
+      </div>
+      <button class="cp-publish-btn" id="btnSubmitFullPost">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+        <span>نشر الآن</span>
+      </button>
+    </header>
+
+    <div class="cp-container">
+      <div class="cp-post-type-tabs" id="cpTypeTabs">
+        <button class="cp-type-tab active" data-type="general">📝 منشور عام</button>
+        <button class="cp-type-tab" data-type="review">⭐ مراجعة وتقييم</button>
+        <button class="cp-type-tab" data-type="poll">📊 استطلاع وتصويت</button>
+        <button class="cp-type-tab" data-type="theory">🔮 نظرية وتحليل</button>
+      </div>
+
+      <div class="cp-textarea-card">
+        <textarea class="cp-main-textarea" id="cpPostText" placeholder="شو عم تتابع اليوم؟ شارك نظريتك، مراجعتك أو رأيك مع الأصدقاء..."></textarea>
+        <div style="display:flex; justify-content:space-between; align-items:center; border-top:1px solid rgba(255,255,255,0.05); padding-top:10px;">
+          <div style="display:flex; gap:6px;">
+            <span class="cp-quick-tag-chip" data-tag="#نظريات_أنمي">#نظريات_أنمي</span>
+            <span class="cp-quick-tag-chip" data-tag="#تسريبات">#تسريبات</span>
+            <span class="cp-quick-tag-chip" data-tag="#مراجعة">#مراجعة</span>
+          </div>
+          <span id="cpCharCount" style="font-size:11px; color:var(--ab-text-tertiary);">0 / 2000</span>
+        </div>
+      </div>
+
+      <!-- حقول المراجعة -->
+      <div class="cp-textarea-card" id="cpReviewFields" style="display:none;">
+        <div style="font-size:13px; font-weight:700; color:var(--ab-gold);">⭐ تقييم العمل من 10</div>
+        <div style="display:flex; align-items:center; gap:12px;">
+          <span style="font-size:22px; font-weight:900; color:var(--ab-gold);" id="cpScoreVal">9.5</span>
+          <input type="range" id="cpScoreSlider" min="1" max="10" step="0.1" value="9.5" style="flex:1; accent-color:var(--ab-gold);">
+        </div>
+      </div>
+
+      <!-- حقول الاستطلاع -->
+      <div class="cp-textarea-card" id="cpPollFields" style="display:none;">
+        <div style="font-size:13px; font-weight:700; color:var(--ab-cyan);">📊 خيارات التصويت</div>
+        <input type="text" id="cpPollOpt1" placeholder="الخيار الأول" style="background:#0b0d14; border:1px solid var(--ab-border-subtle); color:#fff; padding:10px; border-radius:8px;">
+        <input type="text" id="cpPollOpt2" placeholder="الخيار الثاني" style="background:#0b0d14; border:1px solid var(--ab-border-subtle); color:#fff; padding:10px; border-radius:8px; margin-top:8px;">
+      </div>
+
+      <!-- ربط الأنمي -->
+      <div class="cp-textarea-card">
+        <div style="font-size:13px; font-weight:700;">🎬 ربط المنشور بعمل أنمي أو مانجا</div>
+        <select id="cpAttachedAnime" style="background:#0b0d14; border:1px solid var(--ab-border-subtle); color:#fff; padding:10px; border-radius:8px; outline:none;">
+          <option value="none">-- بدون ربط عمل --</option>
+          <option value="aot">Attack on Titan: The Final Season</option>
+          <option value="solo">Solo Leveling Season 2: Arise</option>
+          <option value="frieren">Frieren: Beyond Journey's End</option>
+          <option value="op">One Piece: Egghead Arc</option>
+        </select>
+      </div>
+
+      <!-- تحذير الحرق -->
+      <div class="cp-textarea-card" style="border-color:rgba(255,51,75,0.3); background:rgba(255,51,75,0.05);">
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+          <div>
+            <div style="font-weight:700; color:var(--ab-danger-spoiler);">تحذير حرق الأحداث (Spoiler Alert)</div>
+            <div style="font-size:11px; color:var(--ab-text-tertiary);">حماية المتابعين من حرق المانجا أو الحلقات</div>
+          </div>
+          <input type="checkbox" id="cpCheckSpoiler" style="width:20px; height:20px; accent-color:var(--ab-danger-spoiler);">
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- غرفة الدردشة التفاعلية المباشرة (Active Chat Room) -->
+  <div class="active-chat-room-overlay" id="activeChatOverlay">
+    <header class="chat-room-header">
+      <button class="cp-back-btn" id="btnCloseChatRoom">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
+      </button>
+      <img src="" id="chatRoomAvatar" style="width:38px; height:38px; border-radius:50%; object-fit:cover;">
+      <div>
+        <div id="chatRoomName" style="font-size:14px; font-weight:800; color:#fff;"></div>
+        <div style="font-size:10px; color:var(--ab-success-online);">متصل الآن • نقاش نشط</div>
+      </div>
+    </header>
+    <div class="chat-messages-area" id="chatRoomMessages">
+      <div class="chat-bubble theirs">مرحباً بك في غرفة الأنمي! شو رأيك بآخر حدث في المانجا؟ 🔥</div>
+    </div>
+    <div class="chat-input-bar">
+      <input type="text" id="chatRoomInput" class="create-fake-input" style="flex:1;" placeholder="اكتب رسالتك هنا...">
+      <button class="cp-publish-btn" id="btnSendChatMessage" style="padding:0 16px;">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+      </button>
+    </div>
+  </div>
+
+  <!-- حاوية التنبيهات -->
+  <div class="toast-container" id="toastContainer"></div>
+
+  <!-- ======================================================================
+       الجافاسكريبت التفاعلي الشامل
+       ====================================================================== -->
+  <script>
+    const AnimeBlackEngine = (function() {
+
+      // القصص
+      const stories = [
+        { name: 'قصتي', isMyStory: true, avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80' },
+        { name: 'لوفي', avatar: 'https://images.unsplash.com/photo-1578632767115-351597cf2477?auto=format&fit=crop&w=150&q=80', unread: true },
+        { name: 'غوجو', avatar: 'https://images.unsplash.com/photo-1569003339405-ea396a5a8a90?auto=format&fit=crop&w=150&q=80', unread: true },
+        { name: 'جينوو', avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&q=80', unread: true },
+        { name: 'ميكاسا', avatar: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=150&q=80', unread: false }
+      ];
+
+      // المجتمعات
+      const communities = [
+        {
+          id: 'c1',
+          name: 'عشاق هجوم العمالقة SnK',
+          members: '184k',
+          online: '3.2k',
+          banner: 'https://images.unsplash.com/photo-1579783900882-c0d3dad7b119?auto=format&fit=crop&w=300&q=80',
+          avatar: 'https://images.unsplash.com/photo-1563089145-599997674d42?auto=format&fit=crop&w=150&q=80',
+          lastTopic: 'مناقشة عميقة حول شجرة المسارات وقرار إيرين الأخير',
+          joined: true
+        },
+        {
+          id: 'c2',
+          name: 'مجتمع Solo Leveling العربي',
+          members: '96k',
+          online: '5.1k',
+          banner: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=300&q=80',
+          avatar: 'https://images.unsplash.com/photo-1607604276583-eef5d076aa5f?auto=format&fit=crop&w=150&q=80',
+          lastTopic: 'تسريبات وتحليل المشاهد القتالية للموسم الثاني!',
+          joined: false
+        },
+        {
+          id: 'c3',
+          name: 'مملكة ون بيس One Piece',
+          members: '240k',
+          online: '8.4k',
+          banner: 'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?auto=format&fit=crop&w=300&q=80',
+          avatar: 'https://images.unsplash.com/photo-1578632767115-351597cf2477?auto=format&fit=crop&w=150&q=80',
+          lastTopic: 'أسرار كنز الون بيس وحقيقة جوي بوي بعد الفصل الأخير',
+          joined: true
+        }
+      ];
+
+      // المنشورات
+      let posts = [
+        {
+          id: 'p1',
+          author: { name: 'طارق الزهراني', username: '@tariq_shingeki', avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=150&q=80', tier: 'Black Elite Lv.24' },
+          category: '#نظريات_أنمي',
+          time: 'منذ 20د',
+          text: 'بعد إعادة قراءة الفصول الأخيرة من المانجا بدقة متناهية، توصلت إلى دليل قاطع يربط شجرة الإحداثيات ببداية تكوين الـ Titans قبل ألفي عام!',
+          hasSpoiler: true,
+          spoilerTitle: '⚠️ تحذير حرق مانجا Attack on Titan',
+          spoilerHidden: 'الحقيقة الصادمة أن إيرين لم يكن يتحكم فقط في ماضيه ومستقبله، بل استغل الذاكرة الوراثية للعملاق المهاجم ليغلق الحلقة الزمنية تماماً!',
+          attachedAnime: { title: 'Attack on Titan: The Final Season', poster: 'https://images.unsplash.com/photo-1563089145-599997674d42?auto=format&fit=crop&w=200&q=80' },
+          likes: 342,
+          isLiked: false,
+          commentsCount: 58
+        },
+        {
+          id: 'p2',
+          author: { name: 'سارة النقّادة', username: '@sara_frieren', avatar: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=150&q=80', tier: 'Master Critic Lv.19' },
+          category: '#مراجعة_شاملة',
+          time: 'منذ ساعتين',
+          text: 'مراجعتي الشاملة لتحفة الخريف: أنمي Frieren: Beyond Journey\'s End. كيف نجح الاستوديو في تقديم عمل فلسفي هادئ يلامس المشاعر دون صخب؟',
+          attachedAnime: { title: 'Frieren: Beyond Journey\'s End', poster: 'https://images.unsplash.com/photo-1579783900882-c0d3dad7b119?auto=format&fit=crop&w=200&q=80' },
+          likes: 820,
+          isLiked: true,
+          commentsCount: 114
+        }
+      ];
+
+      function showToast(msg, icon = '✓') {
+        const c = document.getElementById('toastContainer');
+        const p = document.createElement('div');
+        p.className = 'toast-pill';
+        p.innerHTML = `<span>${icon}</span> <span>${msg}</span>`;
+        c.appendChild(p);
+        setTimeout(() => p.remove(), 2600);
+      }
+
+      // رندر القصص
+      function renderStories() {
+        const c = document.getElementById('storiesContainer');
+        c.innerHTML = '';
+        stories.forEach(s => {
+          const div = document.createElement('div');
+          div.className = `story-item ${s.unread ? 'unread' : ''}`;
+          div.innerHTML = `
+            <div class="story-ring-wrapper">
+              <img src="${s.avatar}" class="story-avatar-img">
+              ${s.isMyStory ? '<div class="my-story-add-badge">+</div>' : ''}
+            </div>
+            <span class="story-user-name">${s.name}</span>
+          `;
+          div.onclick = () => showToast(s.isMyStory ? 'إضافة قصة جديدة 📸' : `مشاهدة قصة ${s.name} ⚡`, '⚡');
+          c.appendChild(div);
+        });
+      }
+
+      // رندر المجتمعات في الرئيسية
+      function renderCommunities() {
+        const c = document.getElementById('communitiesScrollContainer');
+        c.innerHTML = '';
+        communities.forEach(cm => {
+          const card = document.createElement('div');
+          card.className = 'community-card';
+          card.innerHTML = `
+            <div class="community-card-banner" style="background-image:url('${cm.banner}')"></div>
+            <div class="community-header">
+              <img src="${cm.avatar}" class="community-avatar">
+              <div class="community-meta">
+                <div class="community-name">${cm.name}</div>
+                <div class="community-stats">
+                  <span>${cm.members} عضو</span> • <span style="color:var(--ab-success-online)">${cm.online} نشط</span>
+                </div>
+              </div>
+            </div>
+            <div class="community-last-topic">${cm.lastTopic}</div>
+            <button class="community-btn-join ${cm.joined ? 'joined' : ''}">${cm.joined ? 'عضو ✓' : 'انضمام +'}</button>
+          `;
+          card.querySelector('.community-btn-join').onclick = (e) => {
+            e.stopPropagation();
+            cm.joined = !cm.joined;
+            renderCommunities();
+            renderFullCommunities();
+            showToast(cm.joined ? `انضممت إلى ${cm.name}` : `غادرت ${cm.name}`, cm.joined ? '✨' : '👋');
+          };
+          c.appendChild(card);
+        });
+      }
+
+      // رندر صفحة المجتمع الكاملة
+      function renderFullCommunities() {
+        const c = document.getElementById('fullCommunityList');
+        c.innerHTML = '';
+        communities.forEach(cm => {
+          const div = document.createElement('div');
+          div.className = 'full-community-card';
+          div.innerHTML = `
+            <div style="display:flex; align-items:center; justify-content:space-between;">
+              <div style="display:flex; align-items:center; gap:12px;">
+                <img src="${cm.avatar}" style="width:50px; height:50px; border-radius:14px; object-fit:cover;">
+                <div>
+                  <div style="font-size:15px; font-weight:800;">${cm.name}</div>
+                  <div style="font-size:11px; color:var(--ab-text-secondary);">${cm.members} عضو • <span style="color:var(--ab-success-online)">${cm.online} متصل الآن</span></div>
+                </div>
+              </div>
+              <button class="cp-publish-btn btn-join-full" style="padding:6px 16px; font-size:12px;">
+                ${cm.joined ? 'عضو ✓' : 'انضمام +'}
+              </button>
+            </div>
+            <div style="font-size:12px; color:var(--ab-text-tertiary); background:rgba(0,0,0,0.3); padding:10px; border-radius:10px;">
+              💬 آخر موضوع نشط: ${cm.lastTopic}
+            </div>
+          `;
+          div.querySelector('.btn-join-full').onclick = () => {
+            cm.joined = !cm.joined;
+            renderCommunities();
+            renderFullCommunities();
+            showToast(cm.joined ? `انضممت إلى ${cm.name}` : `غادرت ${cm.name}`, cm.joined ? '✨' : '👋');
+          };
+          c.appendChild(div);
+        });
+      }
+
+      // رندر المنشورات
+      function renderFeed() {
+        const c = document.getElementById('socialFeedContainer');
+        c.innerHTML = '';
+        posts.forEach(p => {
+          const card = document.createElement('article');
+          card.className = 'post-card';
+          card.innerHTML = `
+            <div class="post-header">
+              <div class="post-author-box">
+                <img src="${p.author.avatar}" class="post-author-avatar">
+                <div>
+                  <div style="display:flex; align-items:center; gap:6px;">
+                    <span class="post-author-name">${p.author.name}</span>
+                    <span class="user-level-tag elite">${p.author.tier}</span>
+                  </div>
+                  <div class="post-time-sub">
+                    <span>${p.author.username}</span> • <span>${p.time}</span> • <span class="post-category-tag">${p.category}</span>
+                  </div>
+                </div>
+              </div>
+              <button class="post-more-btn">•••</button>
+            </div>
+
+            <div class="post-content-text">${p.text}</div>
+
+            ${p.hasSpoiler ? `
+              <div class="spoiler-container">
+                <div class="spoiler-overlay-gate">
+                  <div class="spoiler-title">${p.spoilerTitle}</div>
+                  <div class="spoiler-desc">اضغط للكشف عن المحتوى</div>
+                </div>
+                <div class="spoiler-content-hidden">
+                  <p style="color:#ff8090; font-weight:700;">${p.spoilerHidden}</p>
+                </div>
+              </div>
+            ` : ''}
+
+            ${p.attachedAnime ? `
+              <div class="attached-anime-card">
+                <img src="${p.attachedAnime.poster}" class="attached-anime-poster">
+                <div style="flex:1;">
+                  <div class="attached-anime-title">${p.attachedAnime.title}</div>
+                  <div class="attached-anime-jp">عمل موصى به لمتابعي Anime Black</div>
+                </div>
+                <button class="attached-anime-add-btn">+ إضافة</button>
+              </div>
+            ` : ''}
+
+            <div class="post-actions-bar">
+              <button class="post-action-btn btn-like ${p.isLiked ? 'liked' : ''}">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="${p.isLiked ? 'currentColor' : 'none'}" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
+                <span>${p.likes}</span>
+              </button>
+              <button class="post-action-btn">💬 <span>${p.commentsCount}</span></button>
+              <button class="post-action-btn btn-share">🔗 مشاركة</button>
+              <button class="post-action-btn">🔖</button>
+            </div>
+          `;
+
+          // كشف الحرق
+          const sp = card.querySelector('.spoiler-container');
+          if (sp) sp.onclick = () => sp.classList.add('revealed');
+
+          // إعجاب
+          const lk = card.querySelector('.btn-like');
+          lk.onclick = () => {
+            p.isLiked = !p.isLiked;
+            p.likes += p.isLiked ? 1 : -1;
+            renderFeed();
+            if (p.isLiked) showToast('أعجبك المنشور ❤️', '❤️');
+          };
+
+          card.querySelector('.btn-share').onclick = () => showToast('تم نسخ رابط المنشور!', '🔗');
+          c.appendChild(card);
+        });
+      }
+
+      // التنقل بين الصفحات الرئيسية الخمس
+      function setupNavigation() {
+        const tabs = document.querySelectorAll('.nav-tab-item');
+        tabs.forEach(tab => {
+          tab.onclick = () => {
+            tabs.forEach(t => t.classList.remove('active'));
+            tab.classList.add('active');
+            const target = tab.getAttribute('data-tab');
+
+            document.querySelectorAll('.app-view').forEach(v => v.classList.remove('active'));
+
+            if (target === 'home') document.getElementById('viewHome').classList.add('active');
+            else if (target === 'community') document.getElementById('viewCommunity').classList.add('active');
+            else if (target === 'chat') document.getElementById('viewChat').classList.add('active');
+            else if (target === 'reels') document.getElementById('viewReels').classList.add('active');
+            else if (target === 'more') document.getElementById('viewMore').classList.add('active');
+
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+          };
+        });
+
+        document.getElementById('btnGoToCommunityTab').onclick = () => {
+          document.querySelector('[data-tab="community"]').click();
+        };
+      }
+
+      // صفحة إنشاء المنشور المستقلة
+      function setupCreatePostPage() {
+        const page = document.getElementById('createPostPage');
+        const open = () => { page.classList.add('active'); };
+        const close = () => { page.classList.remove('active'); };
+
+        document.getElementById('btnTopOpenCreatePage').onclick = open;
+        document.getElementById('triggerOpenCreatePage').onclick = open;
+        document.getElementById('btnBackFromCreate').onclick = close;
+
+        // تبديل أنواع المنشور
+        document.querySelectorAll('#cpTypeTabs .cp-type-tab').forEach(t => {
+          t.onclick = () => {
+            document.querySelectorAll('#cpTypeTabs .cp-type-tab').forEach(x => x.classList.remove('active'));
+            t.classList.add('active');
+            const type = t.getAttribute('data-type');
+            document.getElementById('cpReviewFields').style.display = type === 'review' ? 'flex' : 'none';
+            document.getElementById('cpPollFields').style.display = type === 'poll' ? 'flex' : 'none';
+          };
+        });
+
+        // سلايدر التقييم
+        const sld = document.getElementById('cpScoreSlider');
+        sld.oninput = () => { document.getElementById('cpScoreVal').textContent = sld.value; };
+
+        // أزرار الوسوم السريعة
+        document.querySelectorAll('.cp-quick-tag-chip').forEach(ch => {
+          ch.onclick = () => {
+            const ta = document.getElementById('cpPostText');
+            ta.value = ta.value ? `${ta.value} ${ch.getAttribute('data-tag')}` : ch.getAttribute('data-tag');
+          };
+        });
+
+        // زر النشر الفعلي
+        document.getElementById('btnSubmitFullPost').onclick = () => {
+          const text = document.getElementById('cpPostText').value.trim();
+          if (!text) {
+            showToast('اكتب نص المنشور أولاً!', '⚠️');
+            return;
+          }
+          const isSpoiler = document.getElementById('cpCheckSpoiler').checked;
+          const animeChoice = document.getElementById('cpAttachedAnime').value;
+          let anime = null;
+          if (animeChoice === 'aot') anime = { title: 'Attack on Titan', poster: 'https://images.unsplash.com/photo-1563089145-599997674d42?auto=format&fit=crop&w=200&q=80' };
+          if (animeChoice === 'solo') anime = { title: 'Solo Leveling S2', poster: 'https://images.unsplash.com/photo-1607604276583-eef5d076aa5f?auto=format&fit=crop&w=200&q=80' };
+
+          posts.unshift({
+            id: `p_${Date.now()}`,
+            author: { name: 'أحمد الفارس', username: '@monarch_ahmed', avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80', tier: 'Black Elite Lv.18' },
+            category: '#جديد_AnimeBlack',
+            time: 'الآن',
+            text: text,
+            hasSpoiler: isSpoiler,
+            spoilerTitle: '⚠️ تحذير حرق من الكاتب',
+            spoilerHidden: text,
+            attachedAnime: anime,
+            likes: 1,
+            isLiked: true,
+            commentsCount: 0
+          });
+
+          document.getElementById('cpPostText').value = '';
+          close();
+          renderFeed();
+          showToast('تم نشر منشورك في قمة خلاصة Anime Black بنجاح! 🚀', '🚀');
+        };
+      }
+
+      // الدردشة التفاعلية المباشرة
+      function setupChatRoom() {
+        const overlay = document.getElementById('activeChatOverlay');
+        const close = document.getElementById('btnCloseChatRoom');
+        const send = document.getElementById('btnSendChatMessage');
+        const inp = document.getElementById('chatRoomInput');
+        const msgs = document.getElementById('chatRoomMessages');
+
+        document.querySelectorAll('.chat-item-row').forEach(row => {
+          row.onclick = () => {
+            const user = row.getAttribute('data-chat-user');
+            const avatar = row.getAttribute('data-chat-avatar');
+            document.getElementById('chatRoomName').textContent = user;
+            document.getElementById('chatRoomAvatar').src = avatar;
+            overlay.classList.add('active');
+          };
+        });
+
+        close.onclick = () => overlay.classList.remove('active');
+
+        const doSend = () => {
+          const val = inp.value.trim();
+          if (!val) return;
+          const myB = document.createElement('div');
+          myB.className = 'chat-bubble mine';
+          myB.textContent = val;
+          msgs.appendChild(myB);
+          inp.value = '';
+          msgs.scrollTop = msgs.scrollHeight;
+
+          // رد تفاعلي تلقائي بعد ثانية واحدة
+          setTimeout(() => {
+            const botB = document.createElement('div');
+            botB.className = 'chat-bubble theirs';
+            botB.textContent = 'رأي رائع ومثير للاهتمام! دعنا نترقب صدور الفصل القادم لنرى تأكيد ذلك 🔥';
+            msgs.appendChild(botB);
+            msgs.scrollTop = msgs.scrollHeight;
+          }, 1000);
+        };
+
+        send.onclick = doSend;
+        inp.onkeydown = (e) => { if (e.key === 'Enter') doSend(); };
+      }
+
+      // ميزات إضافية للمزيد والمتجر
+      function setupMoreFeatures() {
+        document.getElementById('btnClaimReward').onclick = function() {
+          this.textContent = 'تم الاستلام ✓';
+          this.disabled = true;
+          document.getElementById('currentXp').textContent = '1,500';
+          document.getElementById('xpProgressBar').style.width = '75%';
+          showToast('مبروك! كسبت 50 XP إضافية 🎉', '🎉');
+        };
+
+        document.getElementById('btnOpenStore').onclick = () => {
+          showToast('متجر بلاك: لديك 850 عملة لشراء شارات النيون 🪙', '🛒');
+        };
+        document.getElementById('btnOpenWatchlist').onclick = () => {
+          showToast('مكتبتك: 42 أنمي في قائمة المشاهدة 📚', '📚');
+        };
+        document.getElementById('btnOpenAchievements').onclick = () => {
+          showToast('شجرة المستويات: الرتبة الحالية S-Rank Monarch 🏆', '🏆');
+        };
+        document.getElementById('btnThemeToggle').onclick = () => {
+          showToast('الواجهة الداكنة الفاخرة مُفعلة بأعلى درجات التباين 🌙', '🌙');
+        };
+        document.getElementById('btnPrivacy').onclick = () => {
+          showToast('حماية الحرق التلقائي مفعلة لجميع الفصول الجديدة 🛡️', '🛡️');
+        };
+        document.getElementById('btnToggleStatusCard').onclick = () => {
+          document.getElementById('blackStatusCard').classList.toggle('collapsed');
+        };
+
+        // تفاعل ريلز
+        const reelLikeBtn = document.querySelector('.btn-reel-like');
+        if (reelLikeBtn) {
+          reelLikeBtn.onclick = () => {
+            showToast('أعجبك الريل ❤️', '❤️');
+            document.querySelector('.reel-like-num').textContent = '142.6k';
+          };
+        }
+        document.getElementById('btnReelShare').onclick = () => showToast('تم نسخ رابط الريل ⚡', '⚡');
+        document.getElementById('btnReelOpenComments').onclick = () => showToast('عرض تعليقات الريل 💬', '💬');
+      }
+
+      function init() {
+        renderStories();
+        renderCommunities();
+        renderFullCommunities();
+        renderFeed();
+        setupNavigation();
+        setupCreatePostPage();
+        setupChatRoom();
+        setupMoreFeatures();
+      }
+
+      return { init };
+    })();
+
+    document.addEventListener('DOMContentLoaded', AnimeBlackEngine.init);
+  </script>
+</body>
+</html>

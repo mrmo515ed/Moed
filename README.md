@@ -1,18 +1,15 @@
 # Anime Black Android
 
-Native Android app in Kotlin + Jetpack Compose. This milestone completes the account/onboarding flow from the supplied design: welcome, method chooser, email sign-up and verification, sign-in, password recovery/reset, phone/OTP screens, profile setup/avatar upload, genre interests, success, policies, offline/session-expired/restricted states, and sign-out.
+Native Android app built with Kotlin and Jetpack Compose. It combines the Supabase-backed account flow with a social anime community: personalized feed, posts and polls, stories, communities, direct messages, short videos, profiles, watchlist tracking, achievements, avatar frames, search, and privacy settings.
 
 ## Supabase project
 
-The app is connected to the existing healthy project `anime-black-fresh` (`kpowibropzeapdfpkhqo`); no duplicate project was created. It uses only the public publishable key. The `service_role` key is never included in the Android app.
+The app uses the existing `anime-black-fresh` project (`kpowibropzeapdfpkhqo`) and only the public publishable key. The `service_role` key is never included in the Android app.
 
-- Email/password authentication is enabled.
-- Email auto-confirm has been turned off so new accounts must follow the confirmation link before continuing. This does not unverify existing accounts.
-- The confirmation/recovery redirect is `animeblack://auth-callback`.
-- The existing `handle_new_user` trigger creates each new user's profile and default gamification records.
-- A `profile_genre_interests` table and `replace_my_genre_interests` RPC were added with owner-only RLS policies.
-- The existing public `avatars` bucket and owner-only storage policies are used for profile pictures.
-- Phone/SMS and Google OAuth are not enabled/configured in this Supabase project. Their screens are present and clearly marked as requiring provider setup; they are not represented as working sign-in methods until configured.
+- Email/password authentication and confirmation/recovery callbacks use `animeblack://auth-callback`.
+- Phone/SMS and Google OAuth are not configured in this Supabase project and remain clearly disabled in the app.
+- The social screens use the project's existing public tables and owner-scoped RLS policies. Post publishing and avatar-frame selection use authenticated RPCs.
+- `supabase/migrations/` includes local copies of the social migrations recorded on the hosted project.
 
 Supabase's default email sender is still in use. It is suitable for initial testing but may have delivery/rate limits; configure a custom SMTP provider before wider testing or production.
 
@@ -23,9 +20,9 @@ SUPABASE_URL=https://kpowibropzeapdfpkhqo.supabase.co
 SUPABASE_PUBLISHABLE_KEY=your_supabase_publishable_key
 ```
 
-## Version 0.2.0
+## Version 0.3.0
 
-This release packages the complete Supabase-backed authentication and onboarding flow, including verified-email callback handling, resend confirmation, password reset, encrypted local session storage, profile/avatar updates, and saved genre interests. The debug build is signed with Android's debug key and is intended for testing rather than Play Store distribution.
+This milestone adds the social home and its Supabase-backed flows on top of authentication and onboarding. The debug build is signed with Android's debug key and is intended for testing rather than Play Store distribution.
 
 ## Build and download
 
@@ -35,4 +32,4 @@ Open the repository in Android Studio (JDK 17, Android SDK 35), or run:
 ./gradlew assembleDebug
 ```
 
-The installable debug APK is written to `app/build/outputs/apk/debug/app-debug.apk`. GitHub Actions builds it on pushes to the Arena working branch; tagged milestones are published as GitHub releases.
+The installable debug APK is written to `app/build/outputs/apk/debug/app-debug.apk`. GitHub Actions builds the app on pushes to the Arena working branch and publishes tagged milestone releases.

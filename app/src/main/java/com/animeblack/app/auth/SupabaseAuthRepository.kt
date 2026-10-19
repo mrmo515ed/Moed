@@ -313,6 +313,31 @@ class SupabaseAuthRepository(context: Context) {
         )
     }
 
+    internal suspend fun socialRest(
+        path: String,
+        method: String = "GET",
+        body: String? = null,
+        prefer: String? = null,
+        extraHeaders: Map<String, String> = emptyMap()
+    ): String = restRaw(
+        url = "$baseUrl/rest/v1/${path.trimStart('/')}",
+        method = method,
+        rawBody = body,
+        prefer = prefer,
+        extraHeaders = extraHeaders
+    )
+
+    internal suspend fun uploadSocialObject(bucket: String, path: String, bytes: ByteArray, contentType: String): String {
+        restRaw(
+            url = "$baseUrl/storage/v1/object/$bucket/$path",
+            method = "POST",
+            bodyBytes = bytes,
+            contentType = contentType,
+            extraHeaders = mapOf("x-upsert" to "false")
+        )
+        return "$baseUrl/storage/v1/object/public/$bucket/$path"
+    }
+
     private suspend fun authJson(
         path: String,
         payload: JSONObject? = null,

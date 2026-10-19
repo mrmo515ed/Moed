@@ -23,6 +23,7 @@ import com.animeblack.app.auth.AuthUser
 import com.animeblack.app.auth.RecoveryTokens
 import com.animeblack.app.auth.RestoreSessionResult
 import com.animeblack.app.auth.SupabaseAuthRepository
+import com.animeblack.app.auth.SocialRepository
 import kotlinx.coroutines.launch
 
 private val AppBackground = Color(0xFF090B12)
@@ -94,7 +95,7 @@ class MainActivity : ComponentActivity() {
 
 private enum class AuthScreen {
     WELCOME, METHODS, LOGIN, SIGN_UP, VERIFY_EMAIL, EMAIL_SENT, FORGOT, PHONE, OTP,
-    RESET_PASSWORD, PROFILE, INTERESTS, SUCCESS, TERMS, PRIVACY, RESTRICTED,
+    RESET_PASSWORD, PROFILE, PROFILE_EDIT, INTERESTS, SUCCESS, TERMS, PRIVACY, RESTRICTED,
     SESSION_EXPIRED, OFFLINE, HOME
 }
 
@@ -121,6 +122,10 @@ private fun AnimeBlackApp(
     var retryRestoreSession by androidx.compose.runtime.remember { mutableStateOf(false) }
     var legalReturnScreen by androidx.compose.runtime.remember { mutableStateOf(AuthScreen.WELCOME) }
     val scope = androidx.compose.runtime.rememberCoroutineScope()
+    val appContext = androidx.compose.ui.platform.LocalContext.current.applicationContext
+    val socialRepository = androidx.compose.runtime.remember(repository, appContext) {
+        SocialRepository(repository, appContext)
+    }
 
     fun startTask(action: suspend () -> Unit) {
         if (busy) return
@@ -193,6 +198,14 @@ private fun AnimeBlackApp(
         when (val restored = repository.restoreSession()) {
             is RestoreSessionResult.Active -> {
                 user = restored.user
+                runCatching { repository.loadProfile(restored.user.id) }.getOrNull()?.let { profile ->
+                    user = restored.user.copy(
+                        displayName = profile.displayName.ifBlank { restored.user.displayName },
+                        username = profile.username,
+                        bio = profile.bio,
+                        avatarUrl = profile.avatarUrl
+                    )
+                }
                 screen = AuthScreen.HOME
             }
             RestoreSessionResult.NoSession -> screen = AuthScreen.WELCOME
@@ -293,17 +306,23 @@ private fun AnimeBlackApp(
         runAuth({ repository.verifyPhoneOtp(pendingPhone, code) }, if (phoneSignup) AuthScreen.PROFILE else AuthScreen.HOME)
     }
 
-    fun saveProfile(displayName: String, username: String, bio: String) {
+    fun saveProfileTo(displayName: String, username: String, bio: String, destination: AuthScreen) {
         val currentUser = user ?: return
         startTask {
             if (!repository.isUsernameAvailable(username, currentUser.id)) {
                 throw AuthException("اسم المستخدم مستخدم من قبل. جرّب اسمًا آخر.")
             }
             user = repository.saveProfile(currentUser.id, displayName, username, bio).copy(email = currentUser.email)
-            screen = AuthScreen.INTERESTS
+            screen = destination
             message = null
         }
     }
+
+    fun saveProfile(displayName: String, username: String, bio: String) =
+        saveProfileTo(displayName, username, bio, AuthScreen.INTERESTS)
+
+    fun saveEditedProfile(displayName: String, username: String, bio: String) =
+        saveProfileTo(displayName, username, bio, AuthScreen.HOME)
 
     fun saveInterests(selectedIds: Set<String>) {
         startTask {
@@ -464,6 +483,23 @@ private fun AnimeBlackApp(
                     },
                     onBack = { screen = AuthScreen.WELCOME }
                 )
+                AuthScreen.PROFILE_EDIT -> ProfileScreen(
+                    user = user,
+                    busy = busy,
+                    message = message,
+                    messageIsError = messageIsError,
+                    onSubmit = ::saveEditedProfile,
+                    onAvatarSelected = { uri ->
+                        val current = user
+                        if (current != null) startTask {
+                            val avatar = repository.uploadAvatar(current.id, uri)
+                            user = current.copy(avatarUrl = avatar)
+                            message = "تم تحديث الصورة الشخصية."
+                            messageIsError = false
+                        }
+                    },
+                    onBack = { screen = AuthScreen.HOME }
+                )
                 AuthScreen.INTERESTS -> InterestsScreen(
                     repository = repository,
                     userId = user?.id,
@@ -500,19 +536,31 @@ private fun AnimeBlackApp(
                     secondaryAction = "العودة للبداية",
                     onSecondary = { message = null; screen = retryScreen }
                 )
-                AuthScreen.HOME -> HomeScreen(
-                    user = user,
-                    busy = busy,
-                    onSignOut = {
-                        startTask {
-                            repository.signOut()
-                            user = null
-                            message = null
-                            screen = AuthScreen.WELCOME
-                        }
-                    },
-                    onEditProfile = { screen = AuthScreen.PROFILE }
-                )
+                AuthScreen.HOME -> {
+                    val signedInUser = user
+                    if (signedInUser == null) {
+                        StatusScreen(
+                            title = "انتهت جلستك",
+                            body = "سجّل الدخول مجددًا لمتابعة استخدام التطبيق.",
+                            action = "تسجيل الدخول",
+                            onAction = { screen = AuthScreen.LOGIN }
+                        )
+                    } else {
+                        AnimeBlackSocialApp(
+                            repository = socialRepository,
+                            user = signedInUser,
+                            onSignOut = {
+                                startTask {
+                                    repository.signOut()
+                                    user = null
+                                    message = null
+                                    screen = AuthScreen.WELCOME
+                                }
+                            },
+                            onEditProfile = { screen = AuthScreen.PROFILE_EDIT }
+                        )
+                    }
+                }
             }
         }
     }

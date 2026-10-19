@@ -25,7 +25,10 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.Button
+import androidx.compose.material3.Icon
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
@@ -49,6 +52,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.res.painterResource
@@ -59,6 +63,7 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import coil.compose.AsyncImage
 import com.animeblack.app.auth.AnimeGenre
 import com.animeblack.app.auth.AuthUser
 import com.animeblack.app.auth.SupabaseAuthRepository
@@ -109,7 +114,7 @@ private fun TopBar(title: String, onBack: () -> Unit) {
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
-        TextButton(onClick = onBack) { Text("→ رجوع", color = Color(0xFF75BFFF), fontSize = 14.sp) }
+        TextButton(onClick = onBack) { Text("رجوع", color = Color(0xFF75BFFF), fontSize = 14.sp) }
         Text(title, color = MainText, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
     }
 }
@@ -167,18 +172,18 @@ fun MethodsScreen(
         Text("اختر طريقة الدخول", color = MainText, fontSize = 26.sp, fontWeight = FontWeight.Bold, modifier = Modifier.fillMaxWidth())
         Text("استخدم الطريقة الأنسب للوصول إلى حسابك.", color = Muted, fontSize = 14.sp, modifier = Modifier.fillMaxWidth().padding(top = 7.dp))
         Spacer(Modifier.height(23.dp))
-        MethodCard("✉", "البريد الإلكتروني", "الدخول بكلمة المرور", "متاح", true, onEmail)
+        MethodCard(Icons.Outlined.MailOutline, "البريد الإلكتروني", "الدخول بكلمة المرور", "متاح", true, onEmail)
         Spacer(Modifier.height(11.dp))
-        MethodCard("⌕", "رقم الهاتف", "تحقق برمز SMS لمرة واحدة", if (phoneAvailable) "متاح" else "يتطلب إعداد SMS", phoneAvailable, onPhone)
+        MethodCard(Icons.Outlined.PhoneIphone, "رقم الهاتف", "تحقق برمز SMS لمرة واحدة", if (phoneAvailable) "متاح" else "يتطلب إعداد SMS", phoneAvailable, onPhone)
         Spacer(Modifier.height(11.dp))
-        MethodCard("G", "Google", "دخول آمن بنقرة واحدة", if (googleAvailable) "متاح" else "يتطلب إعداد OAuth", googleAvailable, onGoogle)
+        MethodCard(Icons.Outlined.AccountCircle, "Google", "دخول آمن بنقرة واحدة", if (googleAvailable) "متاح" else "يتطلب إعداد OAuth", googleAvailable, onGoogle)
         Spacer(Modifier.height(18.dp))
         InlineNote("طرق الهاتف وGoogle تظهر هنا، لكن تبقى غير مفعّلة حتى يكتمل إعداد مزوّد SMS وبيانات OAuth في Supabase.", true)
     }
 }
 
 @Composable
-private fun MethodCard(icon: String, title: String, subtitle: String, status: String, enabled: Boolean, onClick: () -> Unit) {
+private fun MethodCard(icon: ImageVector, title: String, subtitle: String, status: String, enabled: Boolean, onClick: () -> Unit) {
     Surface(
         modifier = Modifier.fillMaxWidth().clickable(enabled = enabled, onClick = onClick),
         color = SurfaceColor,
@@ -187,7 +192,7 @@ private fun MethodCard(icon: String, title: String, subtitle: String, status: St
     ) {
         Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
             Surface(color = Blue.copy(alpha = 0.13f), shape = RoundedCornerShape(14.dp), modifier = Modifier.size(48.dp)) {
-                Box(contentAlignment = Alignment.Center) { Text(icon, color = Cyan, fontWeight = FontWeight.Bold, fontSize = 20.sp) }
+                Box(contentAlignment = Alignment.Center) { Icon(icon, contentDescription = null, tint = Cyan, modifier = Modifier.size(22.dp)) }
             }
             Column(Modifier.weight(1f).padding(horizontal = 13.dp)) {
                 Text(title, color = MainText, fontWeight = FontWeight.Bold)
@@ -218,7 +223,7 @@ fun LoginScreen(
     PageFrame {
         TopBar("Anime Black", onBack)
         Spacer(Modifier.height(20.dp))
-        Text("أهلًا بعودتك ✦", color = MainText, fontSize = 27.sp, fontWeight = FontWeight.Bold, modifier = Modifier.fillMaxWidth())
+        Text("أهلًا بعودتك", color = MainText, fontSize = 27.sp, fontWeight = FontWeight.Bold, modifier = Modifier.fillMaxWidth())
         Text("سجّل دخولك لمتابعة رحلتك في عالم الأنمي.", color = Muted, fontSize = 14.sp, modifier = Modifier.fillMaxWidth().padding(top = 7.dp))
         Spacer(Modifier.height(23.dp))
         AuthField(email, { email = it; validation = null }, "البريد الإلكتروني", "name@example.com", KeyboardType.Email, ltr = true)
@@ -298,7 +303,7 @@ fun SignUpScreen(
         AuthField(username, { username = it; localError = null }, "اسم المستخدم", "3–20 حرفًا: a-z، 0-9، _", ltr = true)
         when (usernameState) {
             UsernameState.CHECKING -> Text("نتحقق من توفر الاسم…", color = Muted, fontSize = 12.sp, modifier = Modifier.fillMaxWidth().padding(top = 5.dp))
-            UsernameState.AVAILABLE -> Text("✓ اسم المستخدم متاح", color = Success, fontSize = 12.sp, modifier = Modifier.fillMaxWidth().padding(top = 5.dp))
+            UsernameState.AVAILABLE -> Text("اسم المستخدم متاح", color = Success, fontSize = 12.sp, modifier = Modifier.fillMaxWidth().padding(top = 5.dp))
             UsernameState.TAKEN -> Text("هذا الاسم مستخدم. جرّب اسمًا آخر.", color = Error, fontSize = 12.sp, modifier = Modifier.fillMaxWidth().padding(top = 5.dp))
             UsernameState.IDLE -> if (username.isNotBlank() && !normalizedUsername.matches(Regex("^[a-z0-9_]{3,20}$"))) {
                 Text("استخدم 3–20 حرفًا إنجليزيًا صغيرًا أو رقمًا أو _.", color = Muted, fontSize = 12.sp, modifier = Modifier.fillMaxWidth().padding(top = 5.dp))
@@ -385,7 +390,7 @@ fun VerifyEmailScreen(
     PageFrame {
         TopBar("تحقق الحساب", onBack)
         Spacer(Modifier.height(25.dp))
-        StateIcon("✉")
+        StateIcon(Icons.Outlined.MailOutline)
         Spacer(Modifier.height(20.dp))
         Text("أكد بريدك الإلكتروني", color = MainText, fontSize = 26.sp, fontWeight = FontWeight.Bold, modifier = Modifier.fillMaxWidth())
         Text("أرسلنا رابط تحقق إلى هذا البريد. افتحه على هذا الجهاز للعودة إلى التطبيق تلقائيًا.", color = Muted, fontSize = 14.sp, lineHeight = 23.sp, modifier = Modifier.fillMaxWidth().padding(top = 9.dp))
@@ -425,7 +430,7 @@ fun EmailSentScreen(
     PageFrame {
         TopBar("استعادة الحساب", onBack)
         Spacer(Modifier.height(26.dp))
-        StateIcon("✓")
+        StateIcon(Icons.Outlined.CheckCircleOutline)
         Spacer(Modifier.height(18.dp))
         Text("تحقق من بريدك", color = MainText, fontSize = 26.sp, fontWeight = FontWeight.Bold, modifier = Modifier.fillMaxWidth())
         Text("إذا كان البريد مرتبطًا بحساب، أرسلنا إليه رابطًا آمنًا لإعادة تعيين كلمة المرور.", color = Muted, fontSize = 14.sp, lineHeight = 23.sp, modifier = Modifier.fillMaxWidth().padding(top = 8.dp))
@@ -546,7 +551,7 @@ fun OtpScreen(
     PageFrame {
         TopBar("تحقق الهاتف", onBack)
         Spacer(Modifier.height(22.dp))
-        StateIcon("⌕")
+        StateIcon(Icons.Outlined.PhoneIphone)
         Spacer(Modifier.height(17.dp))
         Text("أدخل رمز التحقق", color = MainText, fontSize = 26.sp, fontWeight = FontWeight.Bold, modifier = Modifier.fillMaxWidth())
         Text("أرسلنا رمزًا من 6 أرقام إلى الرقم التالي.", color = Muted, fontSize = 14.sp, modifier = Modifier.fillMaxWidth().padding(top = 8.dp))
@@ -618,9 +623,12 @@ fun ProfileScreen(
         Spacer(Modifier.height(16.dp))
         Box(contentAlignment = Alignment.BottomEnd) {
             Surface(color = SurfaceLight, shape = CircleShape, modifier = Modifier.size(94.dp), border = BorderStroke(1.dp, Color(0x553D9EFF))) {
-                Box(contentAlignment = Alignment.Center) { Text(displayName.firstOrNull()?.uppercase() ?: "♙", color = Cyan, fontSize = 30.sp, fontWeight = FontWeight.Bold) }
+                Box(contentAlignment = Alignment.Center) {
+                    if (!user?.avatarUrl.isNullOrBlank()) AsyncImage(user?.avatarUrl, contentDescription = "الصورة الشخصية", modifier = Modifier.fillMaxSize().clip(CircleShape), contentScale = ContentScale.Crop)
+                    else Icon(Icons.Outlined.AccountCircle, contentDescription = "الصورة الشخصية", tint = Cyan, modifier = Modifier.size(40.dp))
+                }
             }
-            TextButton(onClick = { imagePicker.launch("image/*") }) { Text("＋", color = Color.White, fontSize = 18.sp) }
+            TextButton(onClick = { imagePicker.launch("image/*") }) { Icon(Icons.Outlined.Add, contentDescription = "إضافة صورة", tint = Color.White) }
         }
         Text("صورة شخصية اختيارية · JPG/PNG", color = Muted, fontSize = 11.sp, modifier = Modifier.padding(top = 4.dp, bottom = 12.dp))
         AuthField(displayName, { displayName = it; validation = null }, "الاسم الظاهر", "كيف نناديك؟")
@@ -713,7 +721,10 @@ fun InterestsScreen(
                         border = BorderStroke(1.dp, if (isSelected) Blue else Color(0xFF293448))
                     ) {
                         Column(Modifier.padding(12.dp)) {
-                            Text(if (isSelected) "✓ ${genre.nameArabic}" else genre.nameArabic, color = if (isSelected) Cyan else MainText, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                if (isSelected) Icon(Icons.Outlined.Check, contentDescription = "محدد", tint = Cyan, modifier = Modifier.size(16.dp))
+                                Text(genre.nameArabic, color = if (isSelected) Cyan else MainText, fontWeight = FontWeight.Bold, fontSize = 14.sp, modifier = Modifier.padding(start = if (isSelected) 4.dp else 0.dp))
+                            }
                             Text(genre.nameEnglish, color = Muted, fontSize = 10.sp, modifier = Modifier.padding(top = 4.dp))
                         }
                     }
@@ -738,12 +749,12 @@ fun InterestsScreen(
 fun SuccessScreen(name: String, onContinue: () -> Unit) {
     PageFrame {
         Spacer(Modifier.height(25.dp))
-        StateIcon("✓", success = true)
+        StateIcon(Icons.Outlined.CheckCircleOutline, success = true)
         Spacer(Modifier.height(20.dp))
         Text("أهلًا بك يا $name!", color = MainText, fontSize = 27.sp, fontWeight = FontWeight.Bold, modifier = Modifier.fillMaxWidth())
         Text("تم إعداد حسابك وحفظ تفضيلاتك بنجاح. عالم الأنمي بانتظارك.", color = Muted, fontSize = 14.sp, lineHeight = 22.sp, modifier = Modifier.fillMaxWidth().padding(top = 8.dp))
         Spacer(Modifier.height(22.dp))
-        InlineNote("✓  تم تأكيد بريدك وحماية حسابك\n✓  تم حفظ ملفك الشخصي\n✓  توصياتك أصبحت جاهزة", false)
+        InlineNote("تم تأكيد بريدك وحماية حسابك\nتم حفظ ملفك الشخصي\nتوصياتك أصبحت جاهزة", false)
         Spacer(Modifier.height(20.dp))
         PrimaryButton("استكشف Anime Black", false, onContinue)
     }
@@ -794,7 +805,7 @@ fun StatusScreen(
 ) {
     PageFrame {
         Spacer(Modifier.height(24.dp))
-        StateIcon(if (title.contains("اتصال")) "⌁" else "⊘", success = false)
+        StateIcon(if (title.contains("اتصال")) Icons.Outlined.CloudOff else Icons.Outlined.ErrorOutline, success = false)
         Spacer(Modifier.height(20.dp))
         Text(title, color = MainText, fontSize = 27.sp, fontWeight = FontWeight.Bold, modifier = Modifier.fillMaxWidth())
         Text(body, color = Muted, fontSize = 14.sp, lineHeight = 23.sp, modifier = Modifier.fillMaxWidth().padding(top = 9.dp))
@@ -826,13 +837,13 @@ fun HomeScreen(user: AuthUser?, busy: Boolean, onSignOut: () -> Unit, onEditProf
 }
 
 @Composable
-private fun StateIcon(symbol: String, success: Boolean = false) {
+private fun StateIcon(icon: ImageVector, success: Boolean = false) {
     Surface(
         color = if (success) Success.copy(alpha = 0.12f) else Blue.copy(alpha = 0.12f),
         shape = RoundedCornerShape(25.dp),
         border = BorderStroke(1.dp, if (success) Success.copy(alpha = 0.35f) else Blue.copy(alpha = 0.35f)),
         modifier = Modifier.size(76.dp)
-    ) { Box(contentAlignment = Alignment.Center) { Text(symbol, color = if (success) Success else Cyan, fontSize = 32.sp, fontWeight = FontWeight.Bold) } }
+    ) { Box(contentAlignment = Alignment.Center) { Icon(icon, contentDescription = null, tint = if (success) Success else Cyan, modifier = Modifier.size(34.dp)) } }
 }
 
 @Composable
