@@ -20,9 +20,9 @@ SUPABASE_URL=https://kpowibropzeapdfpkhqo.supabase.co
 SUPABASE_PUBLISHABLE_KEY=your_supabase_publishable_key
 ```
 
-## Version 0.3.2
+## Version 0.3.3
 
-This test build adds a Supabase-backed personal library (anime and manga tracking, favorites, saved posts), public member profiles with recent posts, story navigation, and notification deep links. The launcher icon keeps its solid black background and the app retains its Luxury Dark styling. The APK is debug-signed and intended for testing, not Play Store distribution.
+This test build adds a Supabase-backed personal library, public profiles with recent posts, story navigation, notification deep links, quote suggestions with admin approval and audit history, and official anime trailer/site links when those URLs exist in the catalog. The launcher icon keeps its solid black background and the app retains its Luxury Dark styling. The APK is debug-signed and intended for testing, not Play Store distribution.
 
 ## Build and download
 
