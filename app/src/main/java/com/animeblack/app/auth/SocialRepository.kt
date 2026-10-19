@@ -201,6 +201,8 @@ data class FrameItem(
 
 data class AdminMetrics(val users: Int, val posts: Int, val communities: Int, val reels: Int, val pendingReports: Int)
 
+data class AdminAuditEntry(val id: String, val actorName: String, val action: String, val targetType: String, val targetId: String?, val details: String, val createdAt: String)
+
 data class AdminReport(
     val id: String,
     val postId: String,
@@ -632,6 +634,19 @@ class SocialRepository(private val auth: SupabaseAuthRepository, context: Contex
     suspend fun loadProfileRole(userId: String): String {
         val rows = jsonArray(auth.socialRest("profiles?id=eq.$userId&select=role&limit=1"))
         return rows.optJSONObject(0)?.optString("role")?.lowercase(Locale.ROOT) ?: "member"
+    }
+
+    suspend fun loadAdminAuditLog(): List<AdminAuditEntry> {
+        val rows = jsonArray(auth.socialRest("admin_audit_log?select=id,actor_id,action,target_type,target_id,details,created_at&order=created_at.desc&limit=200"))
+        val raw = (0 until rows.length()).mapNotNull { rows.optJSONObject(it) }
+        if (raw.isEmpty()) return emptyList()
+        val profiles = profilesById(raw.map { it.optString("actor_id") }.distinct())
+        return raw.map { row ->
+            val actorId = row.optString("actor_id")
+            AdminAuditEntry(row.optString("id"), profiles[actorId]?.name ?: "مشرف", row.optString("action"),
+                row.optString("target_type"), row.optString("target_id").takeIf(String::isNotBlank),
+                row.optJSONObject("details")?.toString().orEmpty(), row.optString("created_at"))
+        }
     }
 
     suspend fun loadAdminMetrics(): AdminMetrics {

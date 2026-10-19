@@ -49,6 +49,7 @@ import coil.compose.AsyncImage
 import java.text.SimpleDateFormat
 import java.util.Locale
 import com.animeblack.app.auth.AchievementItem
+import com.animeblack.app.auth.AdminAuditEntry
 import com.animeblack.app.auth.AdminMetrics
 import com.animeblack.app.auth.AdminReport
 import com.animeblack.app.auth.AnimeItem
@@ -97,7 +98,7 @@ private enum class SocialPage {
     HOME, COMMUNITY, CHAT, REELS, MORE, CREATE_POST, SEARCH, NOTIFICATIONS,
     COMMUNITY_CREATE, COMMUNITY_DETAIL, CHAT_NEW, CHAT_ROOM, POST_COMMENTS,
     REEL_COMMENTS, REEL_CREATE, STORE, WATCHLIST, ACHIEVEMENTS, PRIVACY,
-    STORY_VIEWER, PUBLIC_PROFILE, CATALOG, CATALOG_DETAIL, MANGA_WATCHLIST, ADMIN, CHARACTERS, CHARACTER_DETAIL, SCHEDULE, QUOTES, REVIEWS
+    STORY_VIEWER, PUBLIC_PROFILE, CATALOG, CATALOG_DETAIL, MANGA_WATCHLIST, ADMIN, CHARACTERS, CHARACTER_DETAIL, SCHEDULE, QUOTES, REVIEWS, ADMIN_AUDIT
 }
 
 @Composable
@@ -139,6 +140,7 @@ fun AnimeBlackSocialApp(
     var reviews by remember { mutableStateOf<List<ReviewEntry>>(emptyList()) }
     var adminRole by remember { mutableStateOf("member") }
     var adminMetrics by remember { mutableStateOf<AdminMetrics?>(null) }
+    var adminAudit by remember { mutableStateOf<List<AdminAuditEntry>>(emptyList()) }
     var adminReports by remember { mutableStateOf<List<AdminReport>>(emptyList()) }
     var adminPendingOnly by rememberSaveable { mutableStateOf(true) }
     var newChatQuery by rememberSaveable { mutableStateOf("") }
@@ -282,6 +284,10 @@ fun AnimeBlackSocialApp(
                         characterWorks = repository.loadCharacterWorks(id)
                         favoriteCharacterIds = repository.loadFavoriteCharacterIds(user.id)
                     }
+                }
+                SocialPage.ADMIN_AUDIT -> {
+                    if (adminRole == "admin") adminAudit = repository.loadAdminAuditLog()
+                    else { page = SocialPage.ADMIN; notice = "سجل التدقيق متاح لمالك المنصة فقط." }
                 }
                 SocialPage.ADMIN -> {
                     if (adminRole in setOf("admin", "moderator")) {
@@ -435,8 +441,9 @@ fun AnimeBlackSocialApp(
                         onSignOut = onSignOut
                     )
                     SocialPage.ADMIN -> AdminPage(adminRole, adminMetrics, adminReports, adminPendingOnly, loading, pageBusy, onBack,
-                        onRefresh = { refresh++ }, onPendingFilter = { adminPendingOnly = it },
+                        onRefresh = { refresh++ }, onPendingFilter = { adminPendingOnly = it }, onOpenAudit = { page = SocialPage.ADMIN_AUDIT },
                         onReview = { report, status -> runAction({ repository.reviewPostReport(report.id, status) }, after = { notice = if (status == "resolved") "تم تسجيل مراجعة البلاغ." else "تم إغلاق البلاغ باعتباره غير مستوفٍ." }) })
+                    SocialPage.ADMIN_AUDIT -> AdminAuditPage(adminAudit, loading, onBack, onRefresh = { refresh++ })
                     SocialPage.CREATE_POST -> CreatePostPage(
                         sessionKey = createSessionId,
                         initialType = draftPostType,
@@ -1470,10 +1477,12 @@ private fun CharacterPortrait(character: CharacterItem, modifier: Modifier = Mod
 private fun AdminPage(
     role: String, metrics: AdminMetrics?, reports: List<AdminReport>, pendingOnly: Boolean,
     loading: Boolean, busy: Boolean, onBack: () -> Unit, onRefresh: () -> Unit,
-    onPendingFilter: (Boolean) -> Unit, onReview: (AdminReport, String) -> Unit
+    onPendingFilter: (Boolean) -> Unit, onOpenAudit: () -> Unit, onReview: (AdminReport, String) -> Unit
 ) {
     Column(Modifier.fillMaxSize()) {
-        PageTopBar("لوحة الإدارة", onBack, Icons.Outlined.Refresh, onRefresh)
+        PageTopBar("لوحة الإدارة", onBack, Icons.Outlined.Refresh, onRefresh) {
+            if (role == "admin") IconAction(Icons.Outlined.History, "سجل التدقيق", onOpenAudit)
+        }
         Text(if (role == "admin") "صلاحية مالك المنصة" else "صلاحية مشرف المحتوى", color = Gold, fontSize = 10.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 16.dp, vertical = 3.dp))
         if (metrics != null) {
             Row(Modifier.fillMaxWidth().padding(horizontal = 13.dp, vertical = 5.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -1498,6 +1507,37 @@ private fun AdminPage(
         }
         Text("إجراءات هذه الصفحة تُسجّل في سجل التدقيق. إغلاق البلاغ لا يحذف المحتوى تلقائيًا.", color = Tertiary, fontSize = 9.sp, lineHeight = 14.sp, modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
     }
+}
+
+@Composable
+private fun AdminAuditPage(entries: List<AdminAuditEntry>, loading: Boolean, onBack: () -> Unit, onRefresh: () -> Unit) {
+    Column(Modifier.fillMaxSize()) {
+        PageTopBar("سجل التدقيق", onBack, Icons.Outlined.Refresh, onRefresh)
+        Text("سجل الإجراءات الإدارية المسجلة من المنصة.", color = Secondary, fontSize = 10.sp, modifier = Modifier.padding(horizontal = 15.dp, vertical = 5.dp))
+        if (loading && entries.isEmpty()) LoadingPanel("جارٍ تحميل السجل")
+        if (!loading && entries.isEmpty()) EmptyInline("لا توجد إجراءات إدارية مسجلة حتى الآن.", Icons.Outlined.History)
+        else LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            items(entries, key = { it.id }) { entry ->
+                Surface(Modifier.fillMaxWidth(), color = Card.copy(alpha = .9f), shape = RoundedCornerShape(15.dp), border = BorderStroke(1.dp, White.copy(alpha = .08f))) {
+                    Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Outlined.History, null, tint = Violet, modifier = Modifier.size(16.dp))
+                            Text(adminActionLabel(entry.action), color = White, fontSize = 10.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f).padding(start = 7.dp))
+                            Text(timeAgo(entry.createdAt), color = Tertiary, fontSize = 8.sp)
+                        }
+                        Text("${entry.actorName} · ${entry.targetType}${entry.targetId?.let { " · ${it.take(8)}" } ?: ""}", color = Secondary, fontSize = 9.sp)
+                        if (entry.details.isNotBlank() && entry.details != "{}") Text(entry.details, color = Tertiary, fontSize = 8.sp, maxLines = 3, overflow = TextOverflow.Ellipsis)
+                    }
+                }
+            }
+        }
+    }
+}
+
+private fun adminActionLabel(action: String): String = when (action) {
+    "post_report_resolved" -> "تمت مراجعة بلاغ"
+    "post_report_dismissed" -> "رُفض بلاغ"
+    else -> action
 }
 
 @Composable
