@@ -212,6 +212,21 @@ data class AdminReport(
     val postAuthorName: String?
 )
 
+data class ReviewEntry(
+    val id: String,
+    val userId: String,
+    val authorName: String,
+    val authorAvatar: String?,
+    val workTitle: String,
+    val rating: Int,
+    val title: String?,
+    val body: String,
+    val containsSpoiler: Boolean,
+    val likeCount: Int,
+    val createdAt: String,
+    val isLiked: Boolean
+)
+
 data class QuoteEntry(
     val id: String,
     val text: String,
@@ -565,6 +580,33 @@ class SocialRepository(private val auth: SupabaseAuthRepository, context: Contex
 
     suspend fun addPostComment(userId: String, postId: String, body: String) {
         auth.socialRest("post_comments", "POST", jsonObject { put("post_id", postId); put("author_id", userId); put("body", body.trim()) }.toString())
+    }
+
+    suspend fun loadReviews(userId: String): List<ReviewEntry> {
+        val rows = jsonArray(auth.socialRest("reviews?select=id,user_id,anime_id,manga_id,rating,title,body,contains_spoiler,likes_count,created_at&order=created_at.desc&limit=100"))
+        val raw = (0 until rows.length()).mapNotNull { rows.optJSONObject(it) }
+        if (raw.isEmpty()) return emptyList()
+        val animeIds = raw.mapNotNull { it.optString("anime_id").takeIf(String::isNotBlank) }.distinct()
+        val mangaIds = raw.mapNotNull { it.optString("manga_id").takeIf(String::isNotBlank) }.distinct()
+        val animeTitles = animeByIds(animeIds).associate { it.id to it.displayTitle }
+        val mangaTitles = loadCatalogEntriesByIds("manga", mangaIds).associate { it.id to it.displayTitle }
+        val profiles = profilesById(raw.map { it.optString("user_id") }.distinct())
+        val likedRows = jsonArray(auth.socialRest("review_likes?user_id=eq.$userId&select=review_id&limit=500"))
+        val likedIds = (0 until likedRows.length()).mapNotNull { likedRows.optJSONObject(it)?.optString("review_id")?.takeIf(String::isNotBlank) }.toSet()
+        return raw.mapNotNull { row ->
+            val authorId = row.optString("user_id")
+            val profile = profiles[authorId]
+            val workId = row.optString("anime_id").takeIf(String::isNotBlank) ?: row.optString("manga_id")
+            val workTitle = animeTitles[workId] ?: mangaTitles[workId] ?: "عنوان غير متاح"
+            ReviewEntry(row.optString("id"), authorId, profile?.name ?: "عضو", profile?.avatarUrl, workTitle,
+                row.optInt("rating"), row.optString("title").takeIf(String::isNotBlank), row.optString("body"),
+                row.optBoolean("contains_spoiler"), row.optInt("likes_count"), row.optString("created_at"), row.optString("id") in likedIds)
+        }
+    }
+
+    suspend fun toggleReviewLike(userId: String, reviewId: String, isLiked: Boolean) {
+        if (isLiked) auth.socialRest("review_likes?review_id=eq.$reviewId&user_id=eq.$userId", "DELETE")
+        else auth.socialRest("review_likes", "POST", jsonObject { put("review_id", reviewId); put("user_id", userId) }.toString())
     }
 
     suspend fun loadApprovedQuotes(userId: String): List<QuoteEntry> {

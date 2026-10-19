@@ -65,6 +65,7 @@ import com.animeblack.app.auth.MangaWatchEntry
 import com.animeblack.app.auth.FrameItem
 import com.animeblack.app.auth.QuoteEntry
 import com.animeblack.app.auth.ReelItem
+import com.animeblack.app.auth.ReviewEntry
 import com.animeblack.app.auth.SocialComment
 import com.animeblack.app.auth.SocialPost
 import com.animeblack.app.auth.SocialRepository
@@ -96,7 +97,7 @@ private enum class SocialPage {
     HOME, COMMUNITY, CHAT, REELS, MORE, CREATE_POST, SEARCH, NOTIFICATIONS,
     COMMUNITY_CREATE, COMMUNITY_DETAIL, CHAT_NEW, CHAT_ROOM, POST_COMMENTS,
     REEL_COMMENTS, REEL_CREATE, STORE, WATCHLIST, ACHIEVEMENTS, PRIVACY,
-    STORY_VIEWER, PUBLIC_PROFILE, CATALOG, CATALOG_DETAIL, MANGA_WATCHLIST, ADMIN, CHARACTERS, CHARACTER_DETAIL, SCHEDULE, QUOTES
+    STORY_VIEWER, PUBLIC_PROFILE, CATALOG, CATALOG_DETAIL, MANGA_WATCHLIST, ADMIN, CHARACTERS, CHARACTER_DETAIL, SCHEDULE, QUOTES, REVIEWS
 }
 
 @Composable
@@ -135,6 +136,7 @@ fun AnimeBlackSocialApp(
     var mangaWatchlist by remember { mutableStateOf<List<MangaWatchEntry>>(emptyList()) }
     var episodeSchedule by remember { mutableStateOf<List<EpisodeScheduleEntry>>(emptyList()) }
     var quotes by remember { mutableStateOf<List<QuoteEntry>>(emptyList()) }
+    var reviews by remember { mutableStateOf<List<ReviewEntry>>(emptyList()) }
     var adminRole by remember { mutableStateOf("member") }
     var adminMetrics by remember { mutableStateOf<AdminMetrics?>(null) }
     var adminReports by remember { mutableStateOf<List<AdminReport>>(emptyList()) }
@@ -269,6 +271,7 @@ fun AnimeBlackSocialApp(
                 SocialPage.MANGA_WATCHLIST -> mangaWatchlist = repository.loadMangaWatchlist(user.id)
                 SocialPage.SCHEDULE -> episodeSchedule = repository.loadEpisodeSchedule()
                 SocialPage.QUOTES -> quotes = repository.loadApprovedQuotes(user.id)
+                SocialPage.REVIEWS -> reviews = repository.loadReviews(user.id)
                 SocialPage.CHARACTERS -> {
                     characters = repository.loadCharacters(characterSearch)
                     favoriteCharacterIds = repository.loadFavoriteCharacterIds(user.id)
@@ -418,6 +421,7 @@ fun AnimeBlackSocialApp(
                         onCharacters = { characterSearch = ""; onlyFavoriteCharacters = false; page = SocialPage.CHARACTERS },
                         onSchedule = { page = SocialPage.SCHEDULE },
                         onQuotes = { page = SocialPage.QUOTES },
+                        onReviews = { page = SocialPage.REVIEWS },
                         onMangaList = { page = SocialPage.MANGA_WATCHLIST },
                         isAdmin = adminRole in setOf("admin", "moderator"),
                         onAdmin = { adminPendingOnly = true; page = SocialPage.ADMIN },
@@ -501,6 +505,9 @@ fun AnimeBlackSocialApp(
                     )
                     SocialPage.SCHEDULE -> SchedulePage(episodeSchedule, loading, pageBusy, onBack, onRefresh = { refresh++ },
                         onOpenAnime = { scheduled -> catalogKind = "anime"; catalogReturnPage = SocialPage.SCHEDULE; selectedCatalogId = scheduled.anime.id; catalogDetail = null; page = SocialPage.CATALOG_DETAIL })
+                    SocialPage.REVIEWS -> ReviewsPage(reviews, hideSpoilers, loading, pageBusy, onBack, onRefresh = { refresh++ },
+                        onWriteReview = { postingCommunityId = null; startCreatePost("review", false) },
+                        onLike = { review -> runAction({ repository.toggleReviewLike(user.id, review.id, review.isLiked) }) })
                     SocialPage.QUOTES -> QuotesPage(quotes, loading, pageBusy, onBack, onRefresh = { refresh++ },
                         onLike = { quote -> runAction({ repository.toggleQuoteLike(user.id, quote.id, quote.isLiked) }) },
                         onShare = { quote -> shareText(context, "${quote.text}\n— ${quote.characterName}${quote.sourceReference?.let { " · $it" } ?: ""}") })
@@ -1207,7 +1214,7 @@ private fun ReelsPage(
 @Composable
 private fun MorePage(
     user: AuthUser, stats: UserStats?, busy: Boolean, onEditProfile: () -> Unit, onStore: () -> Unit,
-    onWatchlist: () -> Unit, onCatalog: () -> Unit, onCharacters: () -> Unit, onSchedule: () -> Unit, onQuotes: () -> Unit, onMangaList: () -> Unit, isAdmin: Boolean, onAdmin: () -> Unit, onAchievements: () -> Unit, onTheme: () -> Unit, pureBlack: Boolean,
+    onWatchlist: () -> Unit, onCatalog: () -> Unit, onCharacters: () -> Unit, onSchedule: () -> Unit, onQuotes: () -> Unit, onReviews: () -> Unit, onMangaList: () -> Unit, isAdmin: Boolean, onAdmin: () -> Unit, onAchievements: () -> Unit, onTheme: () -> Unit, pureBlack: Boolean,
     onPrivacy: () -> Unit, onSignOut: () -> Unit
 ) {
     LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -1240,6 +1247,7 @@ private fun MorePage(
         item { ActionSetting(Icons.Outlined.Person, "الشخصيات", "استكشف الشخصيات وأضف مفضلاتك", onCharacters) }
         item { ActionSetting(Icons.Outlined.CalendarMonth, "جدول الحلقات", "المواعيد القادمة من قاعدة بيانات الجدول", onSchedule) }
         item { ActionSetting(Icons.Outlined.FormatQuote, "اقتباسات الشخصيات", "اقتباسات منشورة ومعتمدة من الكتالوج", onQuotes) }
+        item { ActionSetting(Icons.Outlined.Star, "المراجعات", "مراجعات حقيقية وتقييمات الأعضاء", onReviews) }
         item { ActionSetting(Icons.Outlined.EmojiEvents, "الإنجازات", "إنجازاتك وتقدمك في المجتمع", onAchievements) }
         if (isAdmin) item { ActionSetting(Icons.Outlined.Settings, "لوحة الإدارة", "مراجعة البلاغات وإحصاءات المنصة", onAdmin) }
         item { ActionSetting(Icons.Outlined.Settings, "الخصوصية والتفضيلات", "الحرق، تشغيل المقاطع، والمظهر", onPrivacy) }
@@ -1253,6 +1261,51 @@ private fun MorePage(
             }
         }
         item { OutlinedButton(onClick = onSignOut, enabled = !busy, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp), colors = ButtonDefaults.outlinedButtonColors(contentColor = Danger)) { Icon(Icons.Outlined.Logout, null); Spacer(Modifier.width(7.dp)); Text("تسجيل الخروج") } }
+    }
+}
+
+@Composable
+private fun ReviewsPage(
+    reviews: List<ReviewEntry>, hideSpoilers: Boolean, loading: Boolean, busy: Boolean, onBack: () -> Unit,
+    onRefresh: () -> Unit, onWriteReview: () -> Unit, onLike: (ReviewEntry) -> Unit
+) {
+    Column(Modifier.fillMaxSize()) {
+        PageTopBar("مراجعات الأعضاء", onBack, Icons.Outlined.Refresh, onRefresh) {
+            FilledIconButton(onClick = onWriteReview, enabled = !busy, colors = IconButtonDefaults.filledIconButtonColors(containerColor = Neon, contentColor = Black)) { Icon(Icons.Outlined.Edit, "اكتب مراجعة") }
+        }
+        if (loading && reviews.isEmpty()) LoadingPanel("جارٍ تحميل المراجعات")
+        if (!loading && reviews.isEmpty()) EmptyState("لا توجد مراجعات بعد", "اكتب مراجعة لأنمي واربطها بعنوان وتقييم من الكتالوج.", Icons.Outlined.Star, onWriteReview, "اكتب مراجعة")
+        else LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            items(reviews, key = { it.id }) { review ->
+                var revealed by rememberSaveable(review.id) { mutableStateOf(false) }
+                Surface(Modifier.fillMaxWidth(), color = Card.copy(alpha = .92f), shape = RoundedCornerShape(18.dp), border = BorderStroke(1.dp, Violet.copy(alpha = .22f))) {
+                    Column(Modifier.padding(13.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Avatar(review.authorAvatar, review.authorName, Modifier.size(36.dp))
+                            Column(Modifier.weight(1f).padding(horizontal = 8.dp)) {
+                                Text(review.authorName, color = White, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                                Text("${review.workTitle} · ${timeAgo(review.createdAt)}", color = Secondary, fontSize = 8.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            }
+                            Surface(color = Gold.copy(alpha = .15f), shape = RoundedCornerShape(10.dp)) {
+                                Row(Modifier.padding(horizontal = 8.dp, vertical = 5.dp), verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(Icons.Outlined.Star, null, tint = Gold, modifier = Modifier.size(13.dp))
+                                    Text("${review.rating}/10", color = Gold, fontSize = 9.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(start = 4.dp))
+                                }
+                            }
+                        }
+                        review.title?.let { Text(it, color = Neon, fontSize = 12.sp, fontWeight = FontWeight.Bold) }
+                        if (review.containsSpoiler && hideSpoilers && !revealed) {
+                            Surface(Modifier.fillMaxWidth().clickable { revealed = true }, color = Raised, shape = RoundedCornerShape(11.dp)) {
+                                Text("تحتوي هذه المراجعة على حرق. اضغط لإظهارها.", color = Gold, fontSize = 10.sp, modifier = Modifier.padding(11.dp))
+                            }
+                        } else Text(review.body, color = White, fontSize = 11.sp, lineHeight = 18.sp)
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                            ActionCount(if (review.isLiked) Icons.Outlined.Favorite else Icons.Outlined.FavoriteBorder, review.likeCount.toString(), if (review.isLiked) Danger else Secondary, !busy) { onLike(review) }
+                        }
+                    }
+                }
+            }
+        }
     }
 }
 
