@@ -98,7 +98,7 @@ private enum class SocialPage {
     HOME, COMMUNITY, CHAT, REELS, MORE, CREATE_POST, SEARCH, NOTIFICATIONS,
     COMMUNITY_CREATE, COMMUNITY_DETAIL, CHAT_NEW, CHAT_ROOM, POST_COMMENTS,
     REEL_COMMENTS, REEL_CREATE, STORE, WATCHLIST, ACHIEVEMENTS, PRIVACY,
-    STORY_VIEWER, PUBLIC_PROFILE, CATALOG, CATALOG_DETAIL, MANGA_WATCHLIST, ADMIN, CHARACTERS, CHARACTER_DETAIL, SCHEDULE, QUOTES, REVIEWS, ADMIN_AUDIT
+    STORY_VIEWER, PUBLIC_PROFILE, CATALOG, CATALOG_DETAIL, MANGA_WATCHLIST, LIBRARY, ADMIN, CHARACTERS, CHARACTER_DETAIL, SCHEDULE, QUOTES, REVIEWS, ADMIN_AUDIT
 }
 
 @Composable
@@ -127,6 +127,7 @@ fun AnimeBlackSocialApp(
     var characters by remember { mutableStateOf<List<CharacterItem>>(emptyList()) }
     var selectedCharacter by remember { mutableStateOf<CharacterItem?>(null) }
     var selectedCharacterId by rememberSaveable { mutableStateOf<String?>(null) }
+    var characterReturnPage by rememberSaveable { mutableStateOf(SocialPage.CHARACTERS) }
     var characterWorks by remember { mutableStateOf<List<CatalogEntry>>(emptyList()) }
     var favoriteCharacterIds by remember { mutableStateOf<Set<String>>(emptySet()) }
     var onlyFavoriteCharacters by rememberSaveable { mutableStateOf(false) }
@@ -135,6 +136,10 @@ fun AnimeBlackSocialApp(
     var favoriteAnimeIds by remember { mutableStateOf<Set<String>>(emptySet()) }
     var mangaTracker by remember { mutableStateOf<MangaTrackerEntry?>(null) }
     var mangaWatchlist by remember { mutableStateOf<List<MangaWatchEntry>>(emptyList()) }
+    var favoriteAnimes by remember { mutableStateOf<List<CatalogEntry>>(emptyList()) }
+    var favoriteCharacters by remember { mutableStateOf<List<CharacterItem>>(emptyList()) }
+    var savedPosts by remember { mutableStateOf<List<SocialPost>>(emptyList()) }
+    var libraryTab by rememberSaveable { mutableStateOf("anime") }
     var episodeSchedule by remember { mutableStateOf<List<EpisodeScheduleEntry>>(emptyList()) }
     var quotes by remember { mutableStateOf<List<QuoteEntry>>(emptyList()) }
     var reviews by remember { mutableStateOf<List<ReviewEntry>>(emptyList()) }
@@ -213,7 +218,7 @@ fun AnimeBlackSocialApp(
     fun navigateBack() {
         page = when (page) {
             SocialPage.CATALOG_DETAIL -> catalogReturnPage
-            SocialPage.CHARACTER_DETAIL -> SocialPage.CHARACTERS
+            SocialPage.CHARACTER_DETAIL -> characterReturnPage
             else -> homePageForTab(tab)
         }
     }
@@ -271,6 +276,13 @@ fun AnimeBlackSocialApp(
                 }
                 SocialPage.CATALOG -> catalogItems = repository.loadCatalog(catalogKind, catalogSearch)
                 SocialPage.MANGA_WATCHLIST -> mangaWatchlist = repository.loadMangaWatchlist(user.id)
+                SocialPage.LIBRARY -> {
+                    watchlist = repository.loadWatchlist(user.id)
+                    mangaWatchlist = repository.loadMangaWatchlist(user.id)
+                    favoriteAnimes = repository.loadFavoriteAnime(user.id)
+                    favoriteCharacters = repository.loadFavoriteCharacters(user.id)
+                    savedPosts = repository.loadSavedPosts(user.id)
+                }
                 SocialPage.SCHEDULE -> episodeSchedule = repository.loadEpisodeSchedule()
                 SocialPage.QUOTES -> quotes = repository.loadApprovedQuotes(user.id)
                 SocialPage.REVIEWS -> reviews = repository.loadReviews(user.id)
@@ -423,6 +435,7 @@ fun AnimeBlackSocialApp(
                     SocialPage.MORE -> MorePage(user, stats, pageBusy,
                         onEditProfile = onEditProfile,
                         onStore = { page = SocialPage.STORE },
+                        onLibrary = { libraryTab = "anime"; page = SocialPage.LIBRARY },
                         onCatalog = { catalogKind = "anime"; catalogSearch = ""; page = SocialPage.CATALOG },
                         onCharacters = { characterSearch = ""; onlyFavoriteCharacters = false; page = SocialPage.CHARACTERS },
                         onSchedule = { page = SocialPage.SCHEDULE },
@@ -520,11 +533,22 @@ fun AnimeBlackSocialApp(
                         onShare = { quote -> shareText(context, "${quote.text}\n— ${quote.characterName}${quote.sourceReference?.let { " · $it" } ?: ""}") })
                     SocialPage.CHARACTERS -> CharacterCatalogPage(characters, characterSearch, favoriteCharacterIds, onlyFavoriteCharacters, loading, pageBusy, onBack,
                         onSearch = { characterSearch = it }, onOnlyFavorites = { onlyFavoriteCharacters = it },
-                        onOpen = { character -> selectedCharacter = character; selectedCharacterId = character.id; page = SocialPage.CHARACTER_DETAIL },
+                        onOpen = { character -> characterReturnPage = SocialPage.CHARACTERS; selectedCharacter = character; selectedCharacterId = character.id; page = SocialPage.CHARACTER_DETAIL },
                         onToggleFavorite = { character -> runAction({ repository.toggleFavoriteCharacter(user.id, character.id, character.id in favoriteCharacterIds) }) })
                     SocialPage.CHARACTER_DETAIL -> CharacterDetailPage(selectedCharacter, characterWorks, selectedCharacter?.id?.let { it in favoriteCharacterIds } == true, loading, pageBusy, onBack,
                         onToggleFavorite = { character -> runAction({ repository.toggleFavoriteCharacter(user.id, character.id, character.id in favoriteCharacterIds) }) },
                         onOpenWork = { work -> catalogKind = work.kind; catalogReturnPage = SocialPage.CHARACTER_DETAIL; catalogDetail = work; selectedCatalogId = work.id; mangaTracker = null; page = SocialPage.CATALOG_DETAIL })
+                    SocialPage.LIBRARY -> LibraryPage(watchlist, mangaWatchlist, favoriteAnimes, favoriteCharacters, savedPosts, libraryTab, loading, pageBusy, onBack,
+                        onTab = { libraryTab = it }, onRefresh = { refresh++ }, onExplore = { kind -> catalogKind = kind; catalogSearch = ""; page = SocialPage.CATALOG },
+                        onExploreCharacters = { characterSearch = ""; onlyFavoriteCharacters = false; page = SocialPage.CHARACTERS },
+                        onOpenAnime = { anime -> catalogKind = "anime"; catalogReturnPage = SocialPage.LIBRARY; selectedCatalogId = anime.id; catalogDetail = null; mangaTracker = null; page = SocialPage.CATALOG_DETAIL },
+                        onOpenManga = { entry -> catalogKind = "manga"; catalogReturnPage = SocialPage.LIBRARY; selectedCatalogId = entry.manga.id; catalogDetail = entry.manga; mangaTracker = MangaTrackerEntry(entry.manga.id, entry.status, entry.progressChapters, entry.progressVolumes, entry.score); page = SocialPage.CATALOG_DETAIL },
+                        onOpenFavoriteAnime = { entry -> catalogKind = "anime"; catalogReturnPage = SocialPage.LIBRARY; selectedCatalogId = entry.id; catalogDetail = entry; mangaTracker = null; page = SocialPage.CATALOG_DETAIL },
+                        onOpenCharacter = { character -> characterReturnPage = SocialPage.LIBRARY; selectedCharacter = character; selectedCharacterId = character.id; page = SocialPage.CHARACTER_DETAIL },
+                        onRemoveAnimeFavorite = { entry -> runAction({ repository.toggleFavoriteAnime(user.id, entry.id, true) }) },
+                        onRemoveCharacterFavorite = { character -> runAction({ repository.toggleFavoriteCharacter(user.id, character.id, true) }) },
+                        onOpenSavedPost = { post -> selectedPost = post; page = SocialPage.POST_COMMENTS },
+                        onRemoveSavedPost = { post -> runAction({ repository.togglePostSave(user.id, post.id, true) }) })
                     SocialPage.MANGA_WATCHLIST -> MangaWatchlistPage(mangaWatchlist, loading, pageBusy, onBack,
                         onExplore = { catalogKind = "manga"; catalogSearch = ""; page = SocialPage.CATALOG },
                         onOpen = { entry -> catalogReturnPage = SocialPage.MANGA_WATCHLIST; catalogKind = "manga"; catalogDetail = entry.manga; selectedCatalogId = entry.manga.id; mangaTracker = MangaTrackerEntry(entry.manga.id, entry.status, entry.progressChapters, entry.progressVolumes, entry.score); page = SocialPage.CATALOG_DETAIL },
@@ -1221,7 +1245,7 @@ private fun ReelsPage(
 @Composable
 private fun MorePage(
     user: AuthUser, stats: UserStats?, busy: Boolean, onEditProfile: () -> Unit, onStore: () -> Unit,
-    onWatchlist: () -> Unit, onCatalog: () -> Unit, onCharacters: () -> Unit, onSchedule: () -> Unit, onQuotes: () -> Unit, onReviews: () -> Unit, onMangaList: () -> Unit, isAdmin: Boolean, onAdmin: () -> Unit, onAchievements: () -> Unit, onTheme: () -> Unit, pureBlack: Boolean,
+    onWatchlist: () -> Unit, onLibrary: () -> Unit, onCatalog: () -> Unit, onCharacters: () -> Unit, onSchedule: () -> Unit, onQuotes: () -> Unit, onReviews: () -> Unit, onMangaList: () -> Unit, isAdmin: Boolean, onAdmin: () -> Unit, onAchievements: () -> Unit, onTheme: () -> Unit, pureBlack: Boolean,
     onPrivacy: () -> Unit, onSignOut: () -> Unit
 ) {
     LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -1248,8 +1272,9 @@ private fun MorePage(
             }
         }
         item { ActionSetting(Icons.Outlined.Storefront, "إطارات الملف الشخصي", "افتح الإطارات المتاحة بحسب مستواك", onStore) }
+        item { ActionSetting(Icons.Outlined.LibraryBooks, "مكتبتي", "قوائم الأنمي والمانغا والمفضلات", onLibrary) }
         item { ActionSetting(Icons.Outlined.LibraryBooks, "قائمة متابعة الأنمي", "حالة المشاهدة والتقدم المسجل", onWatchlist) }
-        item { ActionSetting(Icons.Outlined.LibraryBooks, "قائمة المانغا", "حالة القراءة والفصول التي سجلتها", onMangaList) }
+        item { ActionSetting(Icons.Outlined.LibraryBooks, "قائمة المانغا",  "حالة القراءة والفصول التي سجلتها", onMangaList) }
         item { ActionSetting(Icons.Outlined.LibraryBooks, "كتالوج الأنمي والمانغا", "استكشف العناوين المسجلة في قاعدة البيانات", onCatalog) }
         item { ActionSetting(Icons.Outlined.Person, "الشخصيات", "استكشف الشخصيات وأضف مفضلاتك", onCharacters) }
         item { ActionSetting(Icons.Outlined.CalendarMonth, "جدول الحلقات", "المواعيد القادمة من قاعدة بيانات الجدول", onSchedule) }
@@ -1585,6 +1610,124 @@ private fun AdminReportCard(report: AdminReport, busy: Boolean, onReview: (Admin
             } else if (!report.moderatorNote.isNullOrBlank()) Text("ملاحظة الإدارة: ${report.moderatorNote}", color = Secondary, fontSize = 9.sp)
         }
     }
+}
+
+@Composable
+private fun LibraryPage(
+    animeEntries: List<WatchEntry>, mangaEntries: List<MangaWatchEntry>, favoriteAnimes: List<CatalogEntry>, favoriteCharacters: List<CharacterItem>, savedPosts: List<SocialPost>,
+    selectedTab: String, loading: Boolean, busy: Boolean, onBack: () -> Unit, onTab: (String) -> Unit, onRefresh: () -> Unit,
+    onExplore: (String) -> Unit, onExploreCharacters: () -> Unit, onOpenAnime: (AnimeItem) -> Unit, onOpenManga: (MangaWatchEntry) -> Unit,
+    onOpenFavoriteAnime: (CatalogEntry) -> Unit, onOpenCharacter: (CharacterItem) -> Unit,
+    onRemoveAnimeFavorite: (CatalogEntry) -> Unit, onRemoveCharacterFavorite: (CharacterItem) -> Unit,
+    onOpenSavedPost: (SocialPost) -> Unit, onRemoveSavedPost: (SocialPost) -> Unit
+) {
+    val tabs = listOf("anime" to "الأنمي", "manga" to "المانغا", "favorite_anime" to "أنمي مفضّل", "favorite_characters" to "شخصيات", "saved" to "محفوظ")
+    Column(Modifier.fillMaxSize()) {
+        PageTopBar("مكتبتي", onBack, Icons.Outlined.Refresh, onRefresh)
+        LazyRow(Modifier.padding(horizontal = 12.dp, vertical = 5.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            items(tabs) { (key, label) -> FilterChip(selected = selectedTab == key, onClick = { onTab(key) }, label = { Text(label, fontSize = 9.sp) }, colors = chipColors()) }
+        }
+        when (selectedTab) {
+            "anime" -> {
+                if (loading && animeEntries.isEmpty()) LoadingPanel("جارٍ تحميل متابعة الأنمي")
+                else if (animeEntries.isEmpty()) EmptyState("لا توجد أعمال متابعة", "أضف أنمي من الكتالوج لتسجيل المشاهدة والتقدم.", Icons.Outlined.Movie, { onExplore("anime") }, "استكشاف الأنمي")
+                else LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    items(animeEntries, key = { it.anime.id }) { entry ->
+                        Surface(Modifier.fillMaxWidth().clickable(enabled = !busy) { onOpenAnime(entry.anime) }, color = Card.copy(alpha = .9f), shape = RoundedCornerShape(15.dp), border = BorderStroke(1.dp, White.copy(alpha = .08f))) {
+                            Row(Modifier.padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                                AnimePoster(entry.anime, Modifier.size(width = 48.dp, height = 65.dp))
+                                Column(Modifier.weight(1f).padding(horizontal = 9.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                    Text(entry.anime.displayTitle, color = White, fontSize = 11.sp, fontWeight = FontWeight.Bold, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                                    Text("${watchStatusLabel(entry.status)} · ${entry.progress}${if (entry.anime.episodeCount > 0) " / ${entry.anime.episodeCount}" else ""} حلقة", color = Secondary, fontSize = 9.sp)
+                                }
+                                Icon(Icons.Outlined.ChevronLeft, null, tint = Neon)
+                            }
+                        }
+                    }
+                }
+            }
+            "manga" -> {
+                if (loading && mangaEntries.isEmpty()) LoadingPanel("جارٍ تحميل متابعة المانغا")
+                else if (mangaEntries.isEmpty()) EmptyState("لا توجد مانغا متابعة", "أضف مانغا من الكتالوج وسجّل تقدم القراءة.", Icons.Outlined.LibraryBooks, { onExplore("manga") }, "استكشاف المانغا")
+                else LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    items(mangaEntries, key = { it.manga.id }) { entry ->
+                        Surface(Modifier.fillMaxWidth().clickable(enabled = !busy) { onOpenManga(entry) }, color = Card.copy(alpha = .9f), shape = RoundedCornerShape(15.dp), border = BorderStroke(1.dp, White.copy(alpha = .08f))) {
+                            Row(Modifier.padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                                CatalogPoster(entry.manga, Modifier.size(width = 48.dp, height = 65.dp))
+                                Column(Modifier.weight(1f).padding(horizontal = 9.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                    Text(entry.manga.displayTitle, color = White, fontSize = 11.sp, fontWeight = FontWeight.Bold, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                                    Text("${mangaStatusLabel(entry.status)} · ${entry.progressChapters} فصلًا", color = Secondary, fontSize = 9.sp)
+                                }
+                                Icon(Icons.Outlined.ChevronLeft, null, tint = Neon)
+                            }
+                        }
+                    }
+                }
+            }
+            "favorite_anime" -> {
+                if (loading && favoriteAnimes.isEmpty()) LoadingPanel("جارٍ تحميل مفضلات الأنمي")
+                else if (favoriteAnimes.isEmpty()) EmptyState("لا توجد مفضلات بعد", "أضف عنوانًا إلى مفضلة الأنمي من صفحة تفاصيله.", Icons.Outlined.FavoriteBorder, { onExplore("anime") }, "استكشاف الأنمي")
+                else LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    items(favoriteAnimes, key = { it.id }) { entry ->
+                        Surface(Modifier.fillMaxWidth(), color = Card.copy(alpha = .9f), shape = RoundedCornerShape(15.dp), border = BorderStroke(1.dp, White.copy(alpha = .08f))) {
+                            Row(Modifier.padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                                CatalogPoster(entry, Modifier.size(width = 48.dp, height = 65.dp))
+                                Text(entry.displayTitle, color = White, fontSize = 11.sp, fontWeight = FontWeight.Bold, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f).padding(horizontal = 9.dp).clickable { onOpenFavoriteAnime(entry) })
+                                IconButton(onClick = { onRemoveAnimeFavorite(entry) }, enabled = !busy) { Icon(Icons.Outlined.Favorite, "إزالة من المفضلة", tint = Danger) }
+                            }
+                        }
+                    }
+                }
+            }
+            "saved" -> {
+                if (loading && savedPosts.isEmpty()) LoadingPanel("جارٍ تحميل المنشورات المحفوظة")
+                else if (savedPosts.isEmpty()) EmptyInline("لا توجد منشورات محفوظة بعد. استخدم زر الحفظ على منشور لإضافته إلى مكتبتك.", Icons.Outlined.BookmarkBorder)
+                else LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    items(savedPosts, key = { it.id }) { post ->
+                        Surface(Modifier.fillMaxWidth().clickable { onOpenSavedPost(post) }, color = Card.copy(alpha = .9f), shape = RoundedCornerShape(15.dp), border = BorderStroke(1.dp, White.copy(alpha = .08f))) {
+                            Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Avatar(post.avatarUrl, post.authorName, Modifier.size(34.dp))
+                                    Column(Modifier.weight(1f).padding(horizontal = 8.dp)) {
+                                        Text(post.authorName, color = White, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                                        Text(timeAgo(post.createdAt), color = Tertiary, fontSize = 8.sp)
+                                    }
+                                    IconButton(onClick = { onRemoveSavedPost(post) }, enabled = !busy) { Icon(Icons.Outlined.Bookmark, "إزالة من المحفوظات", tint = Neon) }
+                                }
+                                if (post.containsSpoiler) Text("منشور محفوظ يحتوي على حرق. اضغط لعرض التعليقات وفتح المحتوى.", color = Gold, fontSize = 9.sp)
+                                else Text(post.content.ifBlank { "منشور محفوظ" }, color = White, fontSize = 10.sp, lineHeight = 16.sp, maxLines = 5, overflow = TextOverflow.Ellipsis)
+                                Text("فتح المنشور", color = Neon, fontSize = 8.sp)
+                            }
+                        }
+                    }
+                }
+            }
+            else -> {
+                if (loading && favoriteCharacters.isEmpty()) LoadingPanel("جارٍ تحميل الشخصيات المفضلة")
+                else if (favoriteCharacters.isEmpty()) EmptyState("لا توجد شخصيات مفضلة", "أضف شخصية من صفحة استكشاف الشخصيات.", Icons.Outlined.Person, onExploreCharacters, "استكشاف الشخصيات")
+                else LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    items(favoriteCharacters, key = { it.id }) { character ->
+                        Surface(Modifier.fillMaxWidth().clickable(enabled = !busy) { onOpenCharacter(character) }, color = Card.copy(alpha = .9f), shape = RoundedCornerShape(15.dp), border = BorderStroke(1.dp, White.copy(alpha = .08f))) {
+                            Row(Modifier.padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                                CharacterPortrait(character, Modifier.size(48.dp))
+                                Text(character.displayName, color = White, fontSize = 11.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f).padding(horizontal = 9.dp))
+                                IconButton(onClick = { onRemoveCharacterFavorite(character) }, enabled = !busy) { Icon(Icons.Outlined.Favorite, "إزالة من المفضلة", tint = Danger) }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+private fun watchStatusLabel(status: String): String = when (status) {
+    "watching" -> "أشاهده الآن"
+    "planning" -> "مخطط للمشاهدة"
+    "completed" -> "مكتمل"
+    "paused" -> "متوقف مؤقتًا"
+    "dropped" -> "متروك"
+    else -> status
 }
 
 @Composable

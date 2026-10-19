@@ -440,6 +440,22 @@ class SocialRepository(private val auth: SupabaseAuthRepository, context: Contex
         return (0 until rows.length()).mapNotNull { rows.optJSONObject(it)?.optString("anime_id")?.takeIf(String::isNotBlank) }.toSet()
     }
 
+    suspend fun loadFavoriteAnime(userId: String): List<CatalogEntry> {
+        val rows = jsonArray(auth.socialRest("profile_favorite_anime?user_id=eq.$userId&select=anime_id&order=rank.asc&limit=10"))
+        val ids = (0 until rows.length()).mapNotNull { rows.optJSONObject(it)?.optString("anime_id")?.takeIf(String::isNotBlank) }
+        val byId = loadCatalogEntriesByIds("anime", ids).associateBy { it.id }
+        return ids.mapNotNull(byId::get)
+    }
+
+    suspend fun loadFavoriteCharacters(userId: String): List<CharacterItem> {
+        val rows = jsonArray(auth.socialRest("profile_favorite_characters?user_id=eq.$userId&select=character_id&order=rank.asc&limit=9"))
+        val ids = (0 until rows.length()).mapNotNull { rows.optJSONObject(it)?.optString("character_id")?.takeIf(String::isNotBlank) }
+        if (ids.isEmpty()) return emptyList()
+        val characterRows = jsonArray(auth.socialRest("characters?id=${inClause(ids)}&select=id,name_ar,name_en,name_native,image_url,about&limit=20"))
+        val byId = (0 until characterRows.length()).mapNotNull { characterRows.optJSONObject(it) }.associate { it.optString("id") to characterFrom(it) }
+        return ids.mapNotNull(byId::get)
+    }
+
     suspend fun toggleFavoriteAnime(userId: String, animeId: String, isFavorite: Boolean) {
         if (isFavorite) {
             auth.socialRest("profile_favorite_anime?user_id=eq.$userId&anime_id=eq.$animeId", "DELETE")
@@ -454,7 +470,14 @@ class SocialRepository(private val auth: SupabaseAuthRepository, context: Contex
         }.toString())
     }
 
-    suspend fun loadFeed(userId: String, filter: String = "all", communityId: String? = null): List<SocialPost> {
+    suspend fun loadSavedPosts(userId: String): List<SocialPost> {
+        val rows = jsonArray(auth.socialRest("post_saves?user_id=eq.$userId&select=post_id&limit=200"))
+        val ids = (0 until rows.length()).mapNotNull { rows.optJSONObject(it)?.optString("post_id")?.takeIf(String::isNotBlank) }.distinct()
+        if (ids.isEmpty()) return emptyList()
+        return loadFeed(userId, filter = "all", postIdsFilter = ids)
+    }
+
+    suspend fun loadFeed(userId: String, filter: String = "all", communityId: String? = null, postIdsFilter: List<String>? = null): List<SocialPost> {
         var authorIds: List<String>? = null
         if (filter == "following") {
             val follows = jsonArray(auth.socialRest("follows?follower_id=eq.$userId&select=following_id&limit=500"))
@@ -463,13 +486,15 @@ class SocialRepository(private val auth: SupabaseAuthRepository, context: Contex
         }
         val filters = buildList {
             if (communityId != null) add("community_id=eq.$communityId")
+            if (postIdsFilter != null) add("id=${inClause(postIdsFilter)}")
             if (authorIds != null) add("author_id=${inClause(authorIds)}")
             when (filter) {
                 "reviews" -> add("kind=eq.review")
                 "theories" -> add("topic=eq.theory")
             }
         }.joinToString("&").let { if (it.isBlank()) "" else "&$it" }
-        val rows = jsonArray(auth.socialRest("posts?select=id,author_id,community_id,content,image_url,video_url,created_at,kind,topic,contains_spoiler,spoiler_label,related_anime_id&order=created_at.desc&limit=40$filters"))
+        val rowLimit = if (postIdsFilter != null) 200 else 40
+        val rows = jsonArray(auth.socialRest("posts?select=id,author_id,community_id,content,image_url,video_url,created_at,kind,topic,contains_spoiler,spoiler_label,related_anime_id&order=created_at.desc&limit=$rowLimit$filters"))
         val rawPosts = (0 until rows.length()).mapNotNull { rows.optJSONObject(it) }
         if (rawPosts.isEmpty()) return emptyList()
         val postIds = rawPosts.map { it.optString("id") }
