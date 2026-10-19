@@ -53,7 +53,9 @@ data class CatalogEntry(
     val season: String?,
     val year: Int?,
     val ageRating: String?,
-    val isNsfw: Boolean
+    val isNsfw: Boolean,
+    val trailerYoutubeId: String? = null,
+    val officialSiteUrl: String? = null
 ) {
     val displayTitle: String get() = titleArabic.ifBlank { titleEnglish }
 }
@@ -240,6 +242,16 @@ data class QuoteEntry(
     val isLiked: Boolean
 )
 
+data class AdminQuoteEntry(
+    val id: String,
+    val text: String,
+    val characterName: String,
+    val sourceReference: String?,
+    val tags: List<String>,
+    val submittedByName: String,
+    val createdAt: String
+)
+
 data class UserNotification(
     val id: String,
     val actorId: String,
@@ -305,7 +317,7 @@ class SocialRepository(private val auth: SupabaseAuthRepository, context: Contex
         require(kind == "anime" || kind == "manga") { "Unknown catalog type" }
         val table = kind
         val selectedColumns = if (kind == "anime") {
-            "id,title_ar,title_en,poster_url,banner_url,synopsis_ar,format,status,episodes_count,score,popularity,season,season_year,age_rating,is_nsfw"
+"id,title_ar,title_en,poster_url,banner_url,synopsis_ar,format,status,episodes_count,score,popularity,season,season_year,age_rating,is_nsfw,trailer_youtube_id,official_site_url"
         } else {
             "id,title_ar,title_en,poster_url,banner_url,synopsis_ar,format,status,chapters_count,score,popularity,is_nsfw"
         }
@@ -384,7 +396,7 @@ class SocialRepository(private val auth: SupabaseAuthRepository, context: Contex
     private suspend fun loadCatalogEntriesByIds(kind: String, ids: List<String>): List<CatalogEntry> {
         if (ids.isEmpty()) return emptyList()
         require(kind == "anime" || kind == "manga")
-        val columns = if (kind == "anime") "id,title_ar,title_en,poster_url,banner_url,synopsis_ar,format,status,episodes_count,score,popularity,season,season_year,age_rating,is_nsfw"
+        val columns = if (kind == "anime") "id,title_ar,title_en,poster_url,banner_url,synopsis_ar,format,status,episodes_count,score,popularity,season,season_year,age_rating,is_nsfw,trailer_youtube_id,official_site_url"
             else "id,title_ar,title_en,poster_url,banner_url,synopsis_ar,format,status,chapters_count,score,popularity,is_nsfw"
         val rows = jsonArray(auth.socialRest("$kind?id=${inClause(ids)}&is_nsfw=eq.false&select=$columns&limit=100"))
         return (0 until rows.length()).mapNotNull { rows.optJSONObject(it) }.map { catalogFrom(it, kind) }
@@ -432,7 +444,9 @@ class SocialRepository(private val auth: SupabaseAuthRepository, context: Contex
             season = row.optString("season").takeIf(String::isNotBlank),
             year = row.optInt("season_year").takeIf { !row.isNull("season_year") && it > 0 },
             ageRating = row.optString("age_rating").takeIf(String::isNotBlank),
-            isNsfw = row.optBoolean("is_nsfw")
+            isNsfw = row.optBoolean("is_nsfw"),
+            trailerYoutubeId = row.optString("trailer_youtube_id").takeIf { it.matches(Regex("[A-Za-z0-9_-]{11}")) },
+            officialSiteUrl = row.optString("official_site_url").takeIf { it.startsWith("https://", ignoreCase = true) || it.startsWith("http://", ignoreCase = true) }
         )
     }
 
@@ -655,6 +669,45 @@ class SocialRepository(private val auth: SupabaseAuthRepository, context: Contex
                 row.optString("source_reference").takeIf(String::isNotBlank), tags, row.optInt("likes_count"), row.optString("created_at"),
                 row.optString("id") in likedIds)
         }
+    }
+
+    suspend fun submitQuoteSuggestion(userId: String, text: String, characterName: String, sourceReference: String, tags: List<String>) {
+        val normalizedText = text.trim()
+        if (normalizedText.length !in 3..800) throw AuthException("يجب أن يتراوح الاقتباس بين 3 و800 حرف.")
+        val normalizedTags = tags.map(String::trim).filter(String::isNotBlank).distinct().take(10)
+        if (normalizedTags.any { it.length > 40 }) throw AuthException("يجب ألا يتجاوز كل وسم 40 حرفًا.")
+        val payload = jsonObject {
+            put("text_ar", normalizedText)
+            val character = characterName.trim().take(100)
+            val source = sourceReference.trim().take(160)
+            put("character_name", if (character.isBlank()) JSONObject.NULL else character)
+            put("source_reference", if (source.isBlank()) JSONObject.NULL else source)
+            put("tags", JSONArray(normalizedTags))
+            put("status", "pending")
+            put("submitted_by", userId)
+        }
+        auth.socialRest("quotes", "POST", payload.toString())
+    }
+
+    suspend fun loadPendingQuotes(): List<AdminQuoteEntry> {
+        val rows = jsonArray(auth.socialRest("quotes?status=eq.pending&select=id,text_ar,character_name,source_reference,tags,submitted_by,created_at&order=created_at.asc&limit=100"))
+        val raw = (0 until rows.length()).mapNotNull { rows.optJSONObject(it) }
+        if (raw.isEmpty()) return emptyList()
+        val profiles = profilesById(raw.map { it.optString("submitted_by") }.distinct())
+        return raw.map { row ->
+            val tagsJson = row.optJSONArray("tags")
+            val tags = if (tagsJson == null) emptyList() else (0 until tagsJson.length()).mapNotNull { tagsJson.optString(it).takeIf(String::isNotBlank) }
+            val submitter = profiles[row.optString("submitted_by")]
+            AdminQuoteEntry(row.optString("id"), row.optString("text_ar"), row.optString("character_name"),
+                row.optString("source_reference").takeIf(String::isNotBlank), tags, submitter?.name ?: "عضو", row.optString("created_at"))
+        }
+    }
+
+    suspend fun reviewQuoteSubmission(quoteId: String, status: String) {
+        require(status == "approved" || status == "rejected")
+        auth.socialRest("rpc/review_quote_submission", "POST", jsonObject {
+            put("p_quote_id", quoteId); put("p_status", status)
+        }.toString())
     }
 
     suspend fun toggleQuoteLike(userId: String, quoteId: String, isLiked: Boolean) {

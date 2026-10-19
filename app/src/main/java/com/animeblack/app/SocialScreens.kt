@@ -51,6 +51,7 @@ import java.util.Locale
 import com.animeblack.app.auth.AchievementItem
 import com.animeblack.app.auth.AdminAuditEntry
 import com.animeblack.app.auth.AdminMetrics
+import com.animeblack.app.auth.AdminQuoteEntry
 import com.animeblack.app.auth.AdminReport
 import com.animeblack.app.auth.AnimeItem
 import com.animeblack.app.auth.AuthException
@@ -98,7 +99,7 @@ private enum class SocialPage {
     HOME, COMMUNITY, CHAT, REELS, MORE, CREATE_POST, SEARCH, NOTIFICATIONS,
     COMMUNITY_CREATE, COMMUNITY_DETAIL, CHAT_NEW, CHAT_ROOM, POST_COMMENTS,
     REEL_COMMENTS, REEL_CREATE, STORE, WATCHLIST, ACHIEVEMENTS, PRIVACY,
-    STORY_VIEWER, PUBLIC_PROFILE, CATALOG, CATALOG_DETAIL, MANGA_WATCHLIST, LIBRARY, ADMIN, CHARACTERS, CHARACTER_DETAIL, SCHEDULE, QUOTES, REVIEWS, ADMIN_AUDIT
+    STORY_VIEWER, PUBLIC_PROFILE, CATALOG, CATALOG_DETAIL, MANGA_WATCHLIST, LIBRARY, ADMIN, CHARACTERS, CHARACTER_DETAIL, SCHEDULE, QUOTES, REVIEWS, ADMIN_AUDIT, ADMIN_QUOTES
 }
 
 @Composable
@@ -147,6 +148,7 @@ fun AnimeBlackSocialApp(
     var adminMetrics by remember { mutableStateOf<AdminMetrics?>(null) }
     var adminAudit by remember { mutableStateOf<List<AdminAuditEntry>>(emptyList()) }
     var adminReports by remember { mutableStateOf<List<AdminReport>>(emptyList()) }
+    var adminPendingQuotes by remember { mutableStateOf<List<AdminQuoteEntry>>(emptyList()) }
     var adminPendingOnly by rememberSaveable { mutableStateOf(true) }
     var newChatQuery by rememberSaveable { mutableStateOf("") }
     var selectedCommunityId by rememberSaveable { mutableStateOf<String?>(null) }
@@ -222,6 +224,7 @@ fun AnimeBlackSocialApp(
             SocialPage.CATALOG_DETAIL -> catalogReturnPage
             SocialPage.CHARACTER_DETAIL -> characterReturnPage
             SocialPage.PUBLIC_PROFILE -> publicProfileReturnPage
+            SocialPage.ADMIN_AUDIT, SocialPage.ADMIN_QUOTES -> SocialPage.ADMIN
             else -> homePageForTab(tab)
         }
     }
@@ -303,6 +306,10 @@ fun AnimeBlackSocialApp(
                 SocialPage.ADMIN_AUDIT -> {
                     if (adminRole == "admin") adminAudit = repository.loadAdminAuditLog()
                     else { page = SocialPage.ADMIN; notice = "سجل التدقيق متاح لمالك المنصة فقط." }
+                }
+                SocialPage.ADMIN_QUOTES -> {
+                    if (adminRole == "admin") adminPendingQuotes = repository.loadPendingQuotes()
+                    else { page = SocialPage.ADMIN; notice = "مراجعة الاقتباسات متاحة لمالك المنصة فقط." }
                 }
                 SocialPage.ADMIN -> {
                     if (adminRole in setOf("admin", "moderator")) {
@@ -461,8 +468,11 @@ fun AnimeBlackSocialApp(
                     )
                     SocialPage.ADMIN -> AdminPage(adminRole, adminMetrics, adminReports, adminPendingOnly, loading, pageBusy, onBack,
                         onRefresh = { refresh++ }, onPendingFilter = { adminPendingOnly = it }, onOpenAudit = { page = SocialPage.ADMIN_AUDIT },
+                        onManageQuotes = { page = SocialPage.ADMIN_QUOTES },
                         onReview = { report, status -> runAction({ repository.reviewPostReport(report.id, status) }, after = { notice = if (status == "resolved") "تم تسجيل مراجعة البلاغ." else "تم إغلاق البلاغ باعتباره غير مستوفٍ." }) })
                     SocialPage.ADMIN_AUDIT -> AdminAuditPage(adminAudit, loading, onBack, onRefresh = { refresh++ })
+                    SocialPage.ADMIN_QUOTES -> AdminQuotesPage(adminPendingQuotes, loading, pageBusy, onBack, onRefresh = { refresh++ },
+                        onReview = { quote, status -> runAction({ repository.reviewQuoteSubmission(quote.id, status) }, after = { notice = if (status == "approved") "تم اعتماد الاقتباس." else "تم رفض الاقتباس." }) })
                     SocialPage.CREATE_POST -> CreatePostPage(
                         sessionKey = createSessionId,
                         initialType = draftPostType,
@@ -544,7 +554,8 @@ fun AnimeBlackSocialApp(
                         onLike = { review -> runAction({ repository.toggleReviewLike(user.id, review.id, review.isLiked) }) })
                     SocialPage.QUOTES -> QuotesPage(quotes, loading, pageBusy, onBack, onRefresh = { refresh++ },
                         onLike = { quote -> runAction({ repository.toggleQuoteLike(user.id, quote.id, quote.isLiked) }) },
-                        onShare = { quote -> shareText(context, "${quote.text}\n— ${quote.characterName}${quote.sourceReference?.let { " · $it" } ?: ""}") })
+                        onShare = { quote -> shareText(context, "${quote.text}\n— ${quote.characterName}${quote.sourceReference?.let { " · $it" } ?: ""}") },
+                        onSubmit = { text, character, source, tags -> runAction({ repository.submitQuoteSuggestion(user.id, text, character, source, tags.split(',').map(String::trim)) }, after = { notice = "أُرسل الاقتباس للمراجعة. سيظهر في القائمة بعد اعتماده." }) })
                     SocialPage.CHARACTERS -> CharacterCatalogPage(characters, characterSearch, favoriteCharacterIds, onlyFavoriteCharacters, loading, pageBusy, onBack,
                         onSearch = { characterSearch = it }, onOnlyFavorites = { onlyFavoriteCharacters = it },
                         onOpen = { character -> characterReturnPage = SocialPage.CHARACTERS; selectedCharacter = character; selectedCharacterId = character.id; page = SocialPage.CHARACTER_DETAIL },
@@ -1360,10 +1371,21 @@ private fun ReviewsPage(
 @Composable
 private fun QuotesPage(
     quotes: List<QuoteEntry>, loading: Boolean, busy: Boolean, onBack: () -> Unit, onRefresh: () -> Unit,
-    onLike: (QuoteEntry) -> Unit, onShare: (QuoteEntry) -> Unit
+    onLike: (QuoteEntry) -> Unit, onShare: (QuoteEntry) -> Unit,
+    onSubmit: (String, String, String, String) -> Unit
 ) {
+    var showSubmit by rememberSaveable { mutableStateOf(false) }
+    var draftQuote by rememberSaveable { mutableStateOf("") }
+    var draftCharacter by rememberSaveable { mutableStateOf("") }
+    var draftSource by rememberSaveable { mutableStateOf("") }
+    var draftTags by rememberSaveable { mutableStateOf("") }
+    var validation by rememberSaveable { mutableStateOf<String?>(null) }
     Column(Modifier.fillMaxSize()) {
-        PageTopBar("اقتباسات الشخصيات", onBack, Icons.Outlined.Refresh, onRefresh)
+        PageTopBar("اقتباسات الشخصيات", onBack, Icons.Outlined.Refresh, onRefresh) {
+            FilledIconButton(onClick = { validation = null; showSubmit = true }, enabled = !busy, colors = IconButtonDefaults.filledIconButtonColors(containerColor = Neon, contentColor = Black)) {
+                Icon(Icons.Outlined.Add, "اقترح اقتباس")
+            }
+        }
         if (loading && quotes.isEmpty()) LoadingPanel("جارٍ تحميل الاقتباسات المعتمدة")
         if (!loading && quotes.isEmpty()) EmptyInline("لا توجد اقتباسات معتمدة لعرضها حاليًا.", Icons.Outlined.FormatQuote)
         else LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -1385,6 +1407,35 @@ private fun QuotesPage(
                 }
             }
         }
+    }
+    if (showSubmit) {
+        AlertDialog(
+            onDismissRequest = { if (!busy) showSubmit = false },
+            containerColor = Panel,
+            title = { Text("اقتراح اقتباس", color = White, fontWeight = FontWeight.Bold) },
+            text = {
+                Column(Modifier.heightIn(max = 430.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(9.dp)) {
+                    Text("سيُرسل الاقتباس للمراجعة قبل ظهوره للجميع.", color = Secondary, fontSize = 10.sp, lineHeight = 15.sp)
+                    OutlinedTextField(draftQuote, { draftQuote = it.take(800); validation = null }, modifier = Modifier.fillMaxWidth(), label = { Text("نص الاقتباس *") }, minLines = 3, maxLines = 7, colors = fieldColors(), shape = RoundedCornerShape(12.dp))
+                    OutlinedTextField(draftCharacter, { draftCharacter = it.take(100) }, modifier = Modifier.fillMaxWidth(), label = { Text("اسم الشخصية (اختياري)") }, singleLine = true, colors = fieldColors(), shape = RoundedCornerShape(12.dp))
+                    OutlinedTextField(draftSource, { draftSource = it.take(160) }, modifier = Modifier.fillMaxWidth(), label = { Text("العمل أو المصدر (اختياري)") }, singleLine = true, colors = fieldColors(), shape = RoundedCornerShape(12.dp))
+                    OutlinedTextField(draftTags, { draftTags = it.take(250) }, modifier = Modifier.fillMaxWidth(), label = { Text("وسوم مفصولة بفواصل (اختياري)") }, singleLine = true, colors = fieldColors(), shape = RoundedCornerShape(12.dp))
+                    validation?.let { Text(it, color = Danger, fontSize = 9.sp) }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    val trimmed = draftQuote.trim()
+                    if (trimmed.length < 3) validation = "أدخل اقتباسًا لا يقل عن 3 أحرف."
+                    else {
+                        onSubmit(trimmed, draftCharacter, draftSource, draftTags)
+                        draftQuote = ""; draftCharacter = ""; draftSource = ""; draftTags = ""
+                        showSubmit = false
+                    }
+                }, enabled = !busy) { Text("إرسال للمراجعة", color = Neon) }
+            },
+            dismissButton = { TextButton(onClick = { showSubmit = false }, enabled = !busy) { Text("إلغاء", color = Secondary) } }
+        )
     }
 }
 
@@ -1518,11 +1569,15 @@ private fun CharacterPortrait(character: CharacterItem, modifier: Modifier = Mod
 private fun AdminPage(
     role: String, metrics: AdminMetrics?, reports: List<AdminReport>, pendingOnly: Boolean,
     loading: Boolean, busy: Boolean, onBack: () -> Unit, onRefresh: () -> Unit,
-    onPendingFilter: (Boolean) -> Unit, onOpenAudit: () -> Unit, onReview: (AdminReport, String) -> Unit
+    onPendingFilter: (Boolean) -> Unit, onOpenAudit: () -> Unit, onManageQuotes: () -> Unit,
+    onReview: (AdminReport, String) -> Unit
 ) {
     Column(Modifier.fillMaxSize()) {
         PageTopBar("لوحة الإدارة", onBack, Icons.Outlined.Refresh, onRefresh) {
-            if (role == "admin") IconAction(Icons.Outlined.History, "سجل التدقيق", onOpenAudit)
+            if (role == "admin") {
+                IconAction(Icons.Outlined.FormatQuote, "مراجعة الاقتباسات", onManageQuotes)
+                IconAction(Icons.Outlined.History, "سجل التدقيق", onOpenAudit)
+            }
         }
         Text(if (role == "admin") "صلاحية مالك المنصة" else "صلاحية مشرف المحتوى", color = Gold, fontSize = 10.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 16.dp, vertical = 3.dp))
         if (metrics != null) {
@@ -1575,9 +1630,44 @@ private fun AdminAuditPage(entries: List<AdminAuditEntry>, loading: Boolean, onB
     }
 }
 
+@Composable
+private fun AdminQuotesPage(
+    entries: List<AdminQuoteEntry>, loading: Boolean, busy: Boolean, onBack: () -> Unit, onRefresh: () -> Unit,
+    onReview: (AdminQuoteEntry, String) -> Unit
+) {
+    Column(Modifier.fillMaxSize()) {
+        PageTopBar("مراجعة الاقتباسات", onBack, Icons.Outlined.Refresh, onRefresh)
+        Text("الاقتراحات الجديدة تنتظر اعتماد مالك المنصة، وكل قرار يُسجّل في سجل التدقيق.", color = Secondary, fontSize = 9.sp, lineHeight = 15.sp, modifier = Modifier.padding(horizontal = 15.dp, vertical = 7.dp))
+        if (loading && entries.isEmpty()) LoadingPanel("جارٍ تحميل الاقتباسات المعلّقة")
+        else if (entries.isEmpty()) EmptyInline("لا توجد اقتباسات بانتظار المراجعة.", Icons.Outlined.FormatQuote)
+        else LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(14.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
+            items(entries, key = { it.id }) { quote ->
+                Surface(Modifier.fillMaxWidth(), color = Card, shape = RoundedCornerShape(17.dp), border = BorderStroke(1.dp, Gold.copy(alpha = .18f))) {
+                    Column(Modifier.padding(13.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
+                        Text("“${quote.text}”", color = White, fontSize = 12.sp, lineHeight = 19.sp)
+                        Text("${quote.characterName.ifBlank { "شخصية غير محددة" }} · أرسله ${quote.submittedByName} · ${timeAgo(quote.createdAt)}", color = Secondary, fontSize = 9.sp)
+                        quote.sourceReference?.let { Text("المصدر: $it", color = Tertiary, fontSize = 9.sp) }
+                        if (quote.tags.isNotEmpty()) Text(quote.tags.joinToString(" · "), color = Neon, fontSize = 8.sp)
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            OutlinedButton(onClick = { onReview(quote, "rejected") }, enabled = !busy, modifier = Modifier.weight(1f), shape = RoundedCornerShape(11.dp), colors = ButtonDefaults.outlinedButtonColors(contentColor = Danger)) {
+                                Text("رفض", fontSize = 10.sp)
+                            }
+                            Button(onClick = { onReview(quote, "approved") }, enabled = !busy, modifier = Modifier.weight(1f), shape = RoundedCornerShape(11.dp), colors = ButtonDefaults.buttonColors(containerColor = Neon, contentColor = Black)) {
+                                Text("اعتماد", fontSize = 10.sp)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
 private fun adminActionLabel(action: String): String = when (action) {
     "post_report_resolved" -> "تمت مراجعة بلاغ"
     "post_report_dismissed" -> "رُفض بلاغ"
+    "quote_approved" -> "اعتماد اقتباس"
+    "quote_rejected" -> "رفض اقتباس"
     else -> action
 }
 
@@ -1825,6 +1915,7 @@ private fun CatalogDetailPage(
     onTrackAnime: (CatalogEntry) -> Unit, onTrackManga: (CatalogEntry, String, Int) -> Unit,
     onRemoveManga: (CatalogEntry) -> Unit
 ) {
+    val context = LocalContext.current
     var mangaStatus by rememberSaveable(entry?.id) { mutableStateOf(mangaTracker?.status ?: "planning") }
     var chapterProgress by rememberSaveable(entry?.id) { mutableStateOf(mangaTracker?.progressChapters?.toString() ?: "0") }
     LaunchedEffect(entry?.id, mangaTracker?.status, mangaTracker?.progressChapters) {
@@ -1865,7 +1956,17 @@ private fun CatalogDetailPage(
                             }
                         }
                     }
-                    item { InfoCard("المشاهدة", "بيانات الكتالوج لا تتضمن روابط بث مرخّصة؛ لذلك لا يوجد تشغيل حلقات داخل التطبيق.", Icons.Outlined.Lock) }
+                    if (entry.trailerYoutubeId != null) item {
+                        Button(onClick = { openExternalUrl(context, "https://www.youtube.com/watch?v=${Uri.encode(entry.trailerYoutubeId)}") }, modifier = Modifier.fillMaxWidth().padding(horizontal = 15.dp), shape = RoundedCornerShape(13.dp), colors = ButtonDefaults.buttonColors(containerColor = Neon, contentColor = Black)) {
+                            Icon(Icons.Outlined.PlayCircleOutline, null); Spacer(Modifier.width(7.dp)); Text("مشاهدة الإعلان الرسمي")
+                        }
+                    }
+                    if (entry.officialSiteUrl != null) item {
+                        OutlinedButton(onClick = { openExternalUrl(context, entry.officialSiteUrl) }, modifier = Modifier.fillMaxWidth().padding(horizontal = 15.dp), shape = RoundedCornerShape(13.dp)) {
+                            Icon(Icons.Outlined.OpenInNew, null); Spacer(Modifier.width(7.dp)); Text("زيارة الموقع الرسمي")
+                        }
+                    }
+                    item { InfoCard("الحلقات الكاملة", "لا تتضمن قاعدة البيانات روابط بث للحلقات. تتوفر فقط روابط الإعلان أو الموقع الرسمي عند تسجيلها في الكتالوج.", Icons.Outlined.Lock) }
                 } else {
                     item {
                         Surface(Modifier.fillMaxWidth().padding(horizontal = 14.dp), color = Panel, shape = RoundedCornerShape(15.dp), border = BorderStroke(1.dp, Color(0x2236475B))) {
@@ -2636,6 +2737,13 @@ private fun rarityColor(rarity: String): Color = when (rarity) {
     "legendary" -> Gold
     "mythic" -> Color(0xFFFF4DCE)
     else -> Secondary
+}
+
+private fun openExternalUrl(context: Context, rawUrl: String) {
+    val uri = runCatching { Uri.parse(rawUrl.trim()) }.getOrNull() ?: return
+    if (uri.scheme !in setOf("http", "https")) return
+    runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, uri)) }
+        .onFailure { android.widget.Toast.makeText(context, "تعذّر فتح الرابط على هذا الجهاز.", android.widget.Toast.LENGTH_SHORT).show() }
 }
 
 private fun shareText(context: Context, text: String) {
