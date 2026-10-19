@@ -242,6 +242,7 @@ data class QuoteEntry(
 
 data class UserNotification(
     val id: String,
+    val actorId: String,
     val actorName: String,
     val actorAvatar: String?,
     val kind: String,
@@ -477,7 +478,7 @@ class SocialRepository(private val auth: SupabaseAuthRepository, context: Contex
         return loadFeed(userId, filter = "all", postIdsFilter = ids)
     }
 
-    suspend fun loadFeed(userId: String, filter: String = "all", communityId: String? = null, postIdsFilter: List<String>? = null): List<SocialPost> {
+    suspend fun loadFeed(userId: String, filter: String = "all", communityId: String? = null, postIdsFilter: List<String>? = null, authorIdFilter: String? = null): List<SocialPost> {
         var authorIds: List<String>? = null
         if (filter == "following") {
             val follows = jsonArray(auth.socialRest("follows?follower_id=eq.$userId&select=following_id&limit=500"))
@@ -487,13 +488,18 @@ class SocialRepository(private val auth: SupabaseAuthRepository, context: Contex
         val filters = buildList {
             if (communityId != null) add("community_id=eq.$communityId")
             if (postIdsFilter != null) add("id=${inClause(postIdsFilter)}")
+            if (authorIdFilter != null) add("author_id=eq.$authorIdFilter")
             if (authorIds != null) add("author_id=${inClause(authorIds)}")
             when (filter) {
                 "reviews" -> add("kind=eq.review")
                 "theories" -> add("topic=eq.theory")
             }
         }.joinToString("&").let { if (it.isBlank()) "" else "&$it" }
-        val rowLimit = if (postIdsFilter != null) 200 else 40
+        val rowLimit = when {
+            postIdsFilter != null -> 200
+            authorIdFilter != null -> 20
+            else -> 40
+        }
         val rows = jsonArray(auth.socialRest("posts?select=id,author_id,community_id,content,image_url,video_url,created_at,kind,topic,contains_spoiler,spoiler_label,related_anime_id&order=created_at.desc&limit=$rowLimit$filters"))
         val rawPosts = (0 until rows.length()).mapNotNull { rows.optJSONObject(it) }
         if (rawPosts.isEmpty()) return emptyList()
@@ -850,6 +856,13 @@ class SocialRepository(private val auth: SupabaseAuthRepository, context: Contex
         }
     }
 
+    suspend fun loadPublicProfile(profileId: String): PublicProfileResult? {
+        val row = jsonArray(auth.socialRest("profiles?id=eq.$profileId&select=id,display_name,username,avatar_url,bio&limit=1")).optJSONObject(0)
+            ?: return null
+        return PublicProfileResult(row.optString("id"), row.optString("display_name"), row.optString("username"),
+            row.optString("avatar_url").takeIf(String::isNotBlank), row.optString("bio"))
+    }
+
     suspend fun toggleFollow(userId: String, targetUserId: String, following: Boolean) {
         if (userId == targetUserId) return
         if (following) auth.socialRest("follows?follower_id=eq.$userId&following_id=eq.$targetUserId", "DELETE")
@@ -867,7 +880,7 @@ class SocialRepository(private val auth: SupabaseAuthRepository, context: Contex
         val profiles = profilesById(raw.map { it.optString("actor_id") }.distinct())
         return raw.map { row ->
             val actor = profiles[row.optString("actor_id")]
-            UserNotification(row.optString("id"), actor?.name ?: "عضو", actor?.avatarUrl, row.optString("kind"),
+            UserNotification(row.optString("id"), row.optString("actor_id"), actor?.name ?: "عضو", actor?.avatarUrl, row.optString("kind"),
                 row.optString("post_id").takeIf(String::isNotBlank), row.optString("created_at"), !row.isNull("read_at"))
         }
     }

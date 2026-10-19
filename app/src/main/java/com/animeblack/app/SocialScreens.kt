@@ -159,7 +159,9 @@ fun AnimeBlackSocialApp(
     var selectedReel by remember { mutableStateOf<ReelItem?>(null) }
     var selectedStory by remember { mutableStateOf<StoryItem?>(null) }
     var selectedProfile by remember { mutableStateOf<com.animeblack.app.auth.PublicProfileResult?>(null) }
+    var publicProfileReturnPage by rememberSaveable { mutableStateOf(SocialPage.SEARCH) }
     var profileFollowing by remember { mutableStateOf(false) }
+    var profilePosts by remember { mutableStateOf<List<SocialPost>>(emptyList()) }
     var feed by remember { mutableStateOf<List<SocialPost>>(emptyList()) }
     var homeCatalog by remember { mutableStateOf<List<CatalogEntry>>(emptyList()) }
     var stories by remember { mutableStateOf<List<StoryItem>>(emptyList()) }
@@ -219,12 +221,13 @@ fun AnimeBlackSocialApp(
         page = when (page) {
             SocialPage.CATALOG_DETAIL -> catalogReturnPage
             SocialPage.CHARACTER_DETAIL -> characterReturnPage
+            SocialPage.PUBLIC_PROFILE -> publicProfileReturnPage
             else -> homePageForTab(tab)
         }
     }
     BackHandler(enabled = page != homePageForTab(tab)) { navigateBack() }
 
-    LaunchedEffect(page, tab, feedFilter, communityFilter, communityQuery, searchQuery, newChatQuery, watchSearch, catalogSearch, catalogKind, selectedCatalogId, characterSearch, selectedCharacterId, selectedCommunityId, selectedChatId, adminPendingOnly, refresh) {
+    LaunchedEffect(page, tab, feedFilter, communityFilter, communityQuery, searchQuery, newChatQuery, watchSearch, catalogSearch, catalogKind, selectedCatalogId, characterSearch, selectedCharacterId, selectedCommunityId, selectedChatId, selectedProfile?.id, adminPendingOnly, refresh) {
         if ((page == SocialPage.SEARCH && searchQuery.isNotBlank()) ||
             (page == SocialPage.CHAT_NEW && newChatQuery.isNotBlank()) ||
             (page == SocialPage.COMMUNITY && communityQuery.isNotBlank()) ||
@@ -322,7 +325,9 @@ fun AnimeBlackSocialApp(
                     stats = repository.loadProfileStats(user.id)
                     achievements = repository.loadAchievements(user.id)
                 }
-                SocialPage.PUBLIC_PROFILE -> selectedProfile?.let { }
+                SocialPage.PUBLIC_PROFILE -> selectedProfile?.let { person ->
+                    profilePosts = repository.loadFeed(user.id, authorIdFilter = person.id)
+                }
                 else -> Unit
             }
         } catch (error: Exception) {
@@ -414,7 +419,7 @@ fun AnimeBlackSocialApp(
                     SocialPage.CHAT_NEW -> NewChatPage(peopleResults, newChatQuery, loading, pageBusy,
                         onBack = onBack, onQuery = { newChatQuery = it },
                         onPerson = { person ->
-                            if (person.id == user.id) { selectedProfile = person; page = SocialPage.PUBLIC_PROFILE }
+                            if (person.id == user.id) { publicProfileReturnPage = SocialPage.CHAT_NEW; selectedProfile = person; page = SocialPage.PUBLIC_PROFILE }
                             else runAction({ selectedChatId = repository.createDirectConversation(user.id, person.id) }, after = { page = SocialPage.CHAT_ROOM })
                         }
                     )
@@ -480,21 +485,29 @@ fun AnimeBlackSocialApp(
                     )
                     SocialPage.SEARCH -> SearchPage(searchQuery, searchResults, hideSpoilers, loading, pageBusy,
                         onBack = onBack, onQuery = { searchQuery = it },
-                        onOpenPerson = { selectedProfile = it; page = SocialPage.PUBLIC_PROFILE },
+                        onOpenPerson = { publicProfileReturnPage = SocialPage.SEARCH; selectedProfile = it; page = SocialPage.PUBLIC_PROFILE },
                         onOpenCommunity = { selectedCommunityId = it.id; page = SocialPage.COMMUNITY_DETAIL },
                         onAddAnime = { anime -> runAction({ repository.saveTrackerEntry(user.id, anime.id, "planning", 0, null) }, after = { notice = "أُضيف ${anime.displayTitle} إلى قائمة المتابعة." }) },
                         onOpenPost = { selectedPost = it; page = SocialPage.POST_COMMENTS }
                     )
                     SocialPage.NOTIFICATIONS -> NotificationsPage(notifications, loading, pageBusy, onBack,
                         onOpen = { notification ->
+                            val notificationPostId = notification.postId
+                            var destination: SocialPage? = null
                             runAction({
                                 if (!notification.isRead) repository.markNotificationRead(notification.id)
-                                if (notification.postId != null) {
-                                    selectedPost = repository.loadFeed(user.id).firstOrNull { it.id == notification.postId }
+                                if (notificationPostId != null) {
+                                    selectedPost = repository.loadFeed(user.id, postIdsFilter = listOf(notificationPostId)).firstOrNull()
+                                    if (selectedPost != null) destination = SocialPage.POST_COMMENTS
+                                } else if (notification.kind == "follow") {
+                                    selectedProfile = repository.loadPublicProfile(notification.actorId)
+                                    selectedProfile?.let { profile ->
+                                        publicProfileReturnPage = SocialPage.NOTIFICATIONS
+                                        profileFollowing = repository.isFollowing(user.id, profile.id)
+                                        destination = SocialPage.PUBLIC_PROFILE
+                                    }
                                 }
-                            }, after = {
-                                if (notification.postId != null && selectedPost != null) page = SocialPage.POST_COMMENTS
-                            })
+                            }, after = { destination?.let { page = it } })
                         }, onRefresh = { refresh++ })
                     SocialPage.POST_COMMENTS -> CommentsPage("التعليقات", selectedPost?.content.orEmpty(), hideSpoilers && selectedPost?.containsSpoiler == true, comments, user.id, loading, pageBusy,
                         onBack, onSend = { text -> selectedPost?.let { post -> runAction({ repository.addPostComment(user.id, post.id, text) }) } },
@@ -570,9 +583,10 @@ fun AnimeBlackSocialApp(
                     )
                     SocialPage.STORY_VIEWER -> StoryViewerPage(selectedStory, stories, pageBusy, onBack,
                         onPick = { uri, caption -> runAction({ val url = repository.uploadImage(user.id, uri); repository.createStory(user.id, url, caption) }, after = { page = SocialPage.HOME }) })
-                    SocialPage.PUBLIC_PROFILE -> PublicProfilePage(selectedProfile, user.id, profileFollowing, pageBusy, onBack,
+                    SocialPage.PUBLIC_PROFILE -> PublicProfilePage(selectedProfile, profilePosts, user.id, profileFollowing, hideSpoilers, loading, pageBusy, onBack,
                         onFollow = { person -> runAction({ repository.toggleFollow(user.id, person.id, profileFollowing) }, after = { profileFollowing = !profileFollowing }) },
-                        onMessage = { person -> runAction({ selectedChatId = repository.createDirectConversation(user.id, person.id) }, after = { page = SocialPage.CHAT_ROOM }) }
+                        onMessage = { person -> runAction({ selectedChatId = repository.createDirectConversation(user.id, person.id) }, after = { page = SocialPage.CHAT_ROOM }) },
+                        onOpenPost = { post -> selectedPost = post; page = SocialPage.POST_COMMENTS }
                     )
                 }
             }
@@ -2274,6 +2288,9 @@ private fun SettingToggle(icon: ImageVector, title: String, subtitle: String, va
 private fun StoryViewerPage(story: StoryItem?, stories: List<StoryItem>, busy: Boolean, onBack: () -> Unit, onPick: (Uri, String) -> Unit) {
     var caption by rememberSaveable { mutableStateOf("") }
     var createMode by rememberSaveable(story?.id) { mutableStateOf(story == null) }
+    var activeStoryId by rememberSaveable(story?.id) { mutableStateOf(story?.id) }
+    val activeStory = stories.firstOrNull { it.id == activeStoryId } ?: story
+    val activeStoryIndex = stories.indexOfFirst { it.id == activeStory?.id }
     var newUri by rememberSaveable { mutableStateOf<Uri?>(null) }
     var error by rememberSaveable { mutableStateOf<String?>(null) }
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { newUri = it }
@@ -2288,38 +2305,104 @@ private fun StoryViewerPage(story: StoryItem?, stories: List<StoryItem>, busy: B
                 Button(onClick = { if (newUri == null) error = "اختر صورة للقصة." else onPick(newUri!!, caption) }, enabled = !busy, modifier = Modifier.fillMaxWidth(), colors = ButtonDefaults.buttonColors(containerColor = Neon, contentColor = Black), shape = RoundedCornerShape(13.dp)) { Text(if (busy) "جارٍ النشر" else "نشر القصة") }
                 error?.let { NoticeBanner(it) { error = null } }
             }
-        } else if (story != null) {
-            AsyncImage(story.imageUrl, contentDescription = "قصة ${story.authorName}", modifier = Modifier.fillMaxSize())
+        } else if (activeStory != null) {
+            AsyncImage(activeStory.imageUrl, contentDescription = "قصة ${activeStory.authorName}", modifier = Modifier.fillMaxSize())
             Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color(0xAA000000), Color.Transparent, Color(0xCC000000)))))
             Row(Modifier.align(Alignment.TopCenter).fillMaxWidth().padding(15.dp), verticalAlignment = Alignment.CenterVertically) {
-                Avatar(story.avatarUrl, story.authorName, Modifier.size(38.dp))
-                Column(Modifier.weight(1f).padding(horizontal = 9.dp)) { Text(story.authorName, color = White, fontSize = 12.sp, fontWeight = FontWeight.Bold); Text(timeAgo(story.createdAt), color = Secondary, fontSize = 9.sp) }
+                Avatar(activeStory.avatarUrl, activeStory.authorName, Modifier.size(38.dp))
+                Column(Modifier.weight(1f).padding(horizontal = 9.dp)) { Text(activeStory.authorName, color = White, fontSize = 12.sp, fontWeight = FontWeight.Bold); Text(timeAgo(activeStory.createdAt), color = Secondary, fontSize = 9.sp) }
                 IconButton(onClick = onBack) { Icon(Icons.Outlined.Close, "إغلاق القصة", tint = White) }
             }
-            Text(story.caption, color = White, fontSize = 14.sp, modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(20.dp))
+            if (activeStoryIndex > 0) {
+                IconButton(onClick = { activeStoryId = stories[activeStoryIndex - 1].id }, modifier = Modifier.align(Alignment.CenterStart)) {
+                    Icon(Icons.Outlined.ChevronLeft, "القصة التالية", tint = White, modifier = Modifier.size(30.dp))
+                }
+            }
+            if (activeStoryIndex in 0 until stories.lastIndex) {
+                IconButton(onClick = { activeStoryId = stories[activeStoryIndex + 1].id }, modifier = Modifier.align(Alignment.CenterEnd)) {
+                    Icon(Icons.Outlined.ChevronRight, "القصة السابقة", tint = White, modifier = Modifier.size(30.dp))
+                }
+            }
+            Text(activeStory.caption, color = White, fontSize = 14.sp, modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(20.dp))
         }
     }
 }
 
 @Composable
 private fun PublicProfilePage(
-    profile: com.animeblack.app.auth.PublicProfileResult?, currentUserId: String, following: Boolean, busy: Boolean, onBack: () -> Unit,
-    onFollow: (com.animeblack.app.auth.PublicProfileResult) -> Unit, onMessage: (com.animeblack.app.auth.PublicProfileResult) -> Unit
+    profile: com.animeblack.app.auth.PublicProfileResult?, posts: List<SocialPost>, currentUserId: String,
+    following: Boolean, hideSpoilers: Boolean, loading: Boolean, busy: Boolean, onBack: () -> Unit,
+    onFollow: (com.animeblack.app.auth.PublicProfileResult) -> Unit,
+    onMessage: (com.animeblack.app.auth.PublicProfileResult) -> Unit,
+    onOpenPost: (SocialPost) -> Unit
 ) {
     Column(Modifier.fillMaxSize()) {
         PageTopBar("الملف العام", onBack, null, null)
-        profile?.let { person ->
-            Surface(Modifier.fillMaxWidth().padding(14.dp), color = Panel, shape = RoundedCornerShape(20.dp), border = BorderStroke(1.dp, Color(0x2236475B))) {
-                Column(Modifier.padding(18.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                    Avatar(person.avatarUrl, person.name, Modifier.size(80.dp))
-                    Text(person.name, color = White, fontSize = 17.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 10.dp))
-                    Text("@${person.username}", color = Neon, fontSize = 11.sp)
-                    Text(person.bio.ifBlank { "عضو في مجتمع Anime Black." }, color = Secondary, fontSize = 12.sp, lineHeight = 19.sp, modifier = Modifier.padding(top = 12.dp))
-                    Row(Modifier.fillMaxWidth().padding(top = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        OutlinedButton(onClick = { onFollow(person) }, enabled = !busy && person.id != currentUserId, modifier = Modifier.weight(1f), shape = RoundedCornerShape(12.dp)) { Icon(if (following) Icons.Outlined.PersonRemove else Icons.Outlined.PersonAddAlt1, null); Text(if (following) "إلغاء المتابعة" else "متابعة", modifier = Modifier.padding(start = 5.dp)) }
-                        Button(onClick = { onMessage(person) }, enabled = !busy && person.id != currentUserId, modifier = Modifier.weight(1f), shape = RoundedCornerShape(12.dp), colors = ButtonDefaults.buttonColors(containerColor = Neon, contentColor = Black)) { Icon(Icons.Outlined.ChatBubbleOutline, null); Text("مراسلة", modifier = Modifier.padding(start = 5.dp)) }
+        if (profile == null) {
+            if (loading) LoadingPanel("جارٍ تحميل الملف العام")
+            else EmptyInline("تعذّر فتح الملف العام. ارجع إلى البحث واختر عضوًا مرة أخرى.", Icons.Outlined.Person)
+        } else {
+            LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 20.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                item {
+                    Surface(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 8.dp), color = Panel, shape = RoundedCornerShape(20.dp), border = BorderStroke(1.dp, Color(0x2236475B))) {
+                        Column(Modifier.padding(18.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                            Avatar(profile.avatarUrl, profile.name, Modifier.size(80.dp))
+                            Text(profile.name, color = White, fontSize = 17.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 10.dp))
+                            Text("@${profile.username}", color = Neon, fontSize = 11.sp)
+                            if (profile.bio.isNotBlank()) Text(profile.bio, color = Secondary, fontSize = 12.sp, lineHeight = 19.sp, modifier = Modifier.padding(top = 12.dp))
+                            Row(Modifier.fillMaxWidth().padding(top = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                OutlinedButton(onClick = { onFollow(profile) }, enabled = !busy && profile.id != currentUserId, modifier = Modifier.weight(1f), shape = RoundedCornerShape(12.dp)) {
+                                    Icon(if (following) Icons.Outlined.PersonRemove else Icons.Outlined.PersonAddAlt1, null)
+                                    Text(if (following) "إلغاء المتابعة" else "متابعة", modifier = Modifier.padding(start = 5.dp))
+                                }
+                                Button(onClick = { onMessage(profile) }, enabled = !busy && profile.id != currentUserId, modifier = Modifier.weight(1f), shape = RoundedCornerShape(12.dp), colors = ButtonDefaults.buttonColors(containerColor = Neon, contentColor = Black)) {
+                                    Icon(Icons.Outlined.ChatBubbleOutline, null)
+                                    Text("مراسلة", modifier = Modifier.padding(start = 5.dp))
+                                }
+                            }
+                        }
                     }
                 }
+                item {
+                    Text("المنشورات الأخيرة", color = White, fontSize = 14.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp))
+                }
+                if (loading && posts.isEmpty()) item { LoadingPanel("جارٍ تحميل منشورات العضو") }
+                else if (posts.isEmpty()) item { EmptyInline("لا توجد منشورات ظاهرة لهذا العضو حتى الآن.", Icons.Outlined.Forum) }
+                else items(posts, key = { it.id }) { post -> ProfilePostCard(post, hideSpoilers, onOpen = { onOpenPost(post) }) }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ProfilePostCard(post: SocialPost, hideSpoilers: Boolean, onOpen: () -> Unit) {
+    var revealed by rememberSaveable(post.id) { mutableStateOf(false) }
+    Surface(Modifier.fillMaxWidth().padding(horizontal = 14.dp), color = Card, shape = RoundedCornerShape(18.dp), border = BorderStroke(1.dp, White.copy(alpha = .07f))) {
+        Column(Modifier.padding(13.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Avatar(post.avatarUrl, post.authorName, Modifier.size(36.dp))
+                Column(Modifier.weight(1f).padding(start = 9.dp)) {
+                    Text(post.authorName, color = White, fontWeight = FontWeight.Bold, fontSize = 11.sp)
+                    Text("${timeAgo(post.createdAt)} · ${topicLabel(post.topic, post.kind)}", color = Tertiary, fontSize = 9.sp)
+                }
+            }
+            if (post.containsSpoiler && hideSpoilers && !revealed) {
+                Surface(Modifier.fillMaxWidth().clickable { revealed = true }, color = Raised, shape = RoundedCornerShape(12.dp)) {
+                    Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                        Text(post.spoilerLabel ?: "محتوى يحتوي على حرق", color = Gold, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                        Text("اضغط هنا للكشف عن النص", color = Secondary, fontSize = 9.sp)
+                    }
+                }
+            } else if (post.content.isNotBlank()) {
+                Text(post.content, color = White, fontSize = 11.sp, lineHeight = 17.sp)
+            }
+            if (post.imageUrl != null && (!post.containsSpoiler || !hideSpoilers || revealed)) {
+                AsyncImage(model = post.imageUrl, contentDescription = "صورة المنشور", modifier = Modifier.fillMaxWidth().heightIn(max = 320.dp).clip(RoundedCornerShape(13.dp)))
+            }
+            if (post.videoUrl != null && (!post.containsSpoiler || !hideSpoilers || revealed)) InlineVideo(post.videoUrl, Modifier.fillMaxWidth().height(210.dp))
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                Text("${post.likeCount} إعجاب · ${post.commentCount} تعليق", color = Secondary, fontSize = 9.sp)
+                TextButton(onClick = onOpen) { Icon(Icons.Outlined.ChatBubbleOutline, null, tint = Neon, modifier = Modifier.size(15.dp)); Text("فتح النقاش", color = Neon, fontSize = 9.sp) }
             }
         }
     }
