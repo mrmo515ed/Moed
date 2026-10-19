@@ -440,7 +440,7 @@ fun AnimeBlackSocialApp(
                     SocialPage.MORE -> MorePage(user, stats, pageBusy,
                         onEditProfile = onEditProfile,
                         onPublicProfile = { publicProfileReturnPage = SocialPage.MORE; profileFollowing = false; selectedProfile = com.animeblack.app.auth.PublicProfileResult(user.id, user.displayName, user.username, user.avatarUrl, user.bio); page = SocialPage.PUBLIC_PROFILE },
-                        onStore = { page = SocialPage.STORE }
+                        onStore = { page = SocialPage.STORE },
                         onLibrary = { libraryTab = "anime"; page = SocialPage.LIBRARY },
                         onCatalog = { catalogKind = "anime"; catalogSearch = ""; page = SocialPage.CATALOG },
                         onCharacters = { characterSearch = ""; onlyFavoriteCharacters = false; page = SocialPage.CHARACTERS },
